@@ -1,6 +1,6 @@
 # Mosaic-SVC Lab
 
-[English](README.md) | 日本語
+日本語 | [English](README.en.md)
 
 Mosaic-SVC Lab は、Seed-VC を基盤にした高品質 singing voice conversion の設計・実験用リポジトリです。
 
@@ -279,4 +279,3 @@ scripts/
 Prompt Adapterは実装済みだが、ブラインド試聴で勝つまでは二軍。
 雑談データはspeaker profile信号としては使えるが、音響学習には使わない。
 ```
-

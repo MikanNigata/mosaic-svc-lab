@@ -1,6 +1,6 @@
 # Mosaic-SVC Lab
 
-English | [日本語](README.ja.md)
+[日本語](README.md) | English
 
 Mosaic-SVC Lab is an experimental repository for high-quality singing voice conversion built around a forked Seed-VC runtime.
 
@@ -279,4 +279,3 @@ Prompt-bank selection is the strongest practical lever found so far.
 Prompt Adapter exists, but is secondary until it wins blind listening.
 Dialogue data is useful as a speaker-profile signal, not as acoustic training data.
 ```
-
