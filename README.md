@@ -1,14 +1,14 @@
 # Mosaic-SVC Lab
 
-English | [日本語](README.ja.md)
+[English](README.md) | 日本語
 
-Mosaic-SVC Lab is an experimental repository for high-quality singing voice conversion built around a forked Seed-VC runtime.
+Mosaic-SVC Lab は、Seed-VC を基盤にした高品質 singing voice conversion の設計・実験用リポジトリです。
 
-The practical target is simple:
+実用上の目的は単純です。
 
-> Make a source guide vocal sing with the perceived identity of a target singer, while preserving pitch, rhythm, lyrics, and singing expression.
+> 入力のガイド歌唱から音程・リズム・歌詞・歌い回しを保ちつつ、出力の声を対象歌手らしくする。
 
-This repository tracks the research design, experiment logs, current best settings, lightweight listening samples, and orchestration scripts. The runnable Seed-VC implementation lives in a separate fork.
+このリポジトリでは、研究設計、実験ログ、現在の最良設定、小さな聴き比べサンプル、再実行用スクリプトを管理します。実際に動くSeed-VC改造コードは別forkに置きます。
 
 ```text
 runtime fork: https://github.com/MikanNigata/seed-vc
@@ -16,24 +16,24 @@ lab repo:     https://github.com/MikanNigata/mosaic-svc-lab
 local root:   D:\voice-lab
 ```
 
-## Motivation
+## 背景
 
-Initial experiments showed that a small adapter on the CAMPPlus/global-style path did not produce a clearly audible improvement. Blind listening preferred a raw Seed-VC prompt over numerically better adapter or longer-prompt variants.
+初期実験では、CAMPPlus/global style 経路へ小さなAdapterを足しても、聴感上は明確な改善になりませんでした。ブラインド比較では、数値上よかったAdapter版や長めprompt版ではなく、素のSeed-VC promptが選ばれました。
 
-This changed the priority of the project:
+そのため、優先順位を変更します。
 
 ```text
-before: speaker adapter / memory first
-after:  canonical prompt bank first, adapter second
+変更前: speaker adapter / memory を先に強化
+変更後: canonical prompt bank を先に作り、adapter は二段目
 ```
 
-The current working hypothesis is:
+現在の作業仮説は次です。
 
-> In Seed-VC singing conversion, target identity is strongly controlled by the reference prompt path, especially prompt mel and prompt semantic features. Therefore prompt selection must be treated as a first-class speaker asset, not as a convenience input.
+> Seed-VCの歌唱変換では、対象話者らしさがreference prompt経路、とくにprompt melとprompt semanticに強く依存する。したがってprompt選別は単なる入力指定ではなく、話者資産として扱うべきである。
 
-## Seed-VC Conditioning Model
+## Seed-VCの条件付け構造
 
-The 44.1 kHz Seed-VC singing model conditions target identity through three reference-derived paths:
+44.1 kHzのSeed-VC歌唱モデルでは、参照音声から主に3つの条件が作られます。
 
 ```text
 reference audio
@@ -42,7 +42,7 @@ reference audio
   -> CAMPPlus global style vector
 ```
 
-For source singing \(x\), reference prompt \(r\), and target style vector \(s\), the current abstraction is:
+入力歌唱を \(x\)、参照promptを \(r\)、style vectorを \(s\) とすると、現在の抽象化は次です。
 
 ```math
 \hat{y} = G_{\theta}
@@ -55,16 +55,16 @@ For source singing \(x\), reference prompt \(r\), and target style vector \(s\),
 \right)
 ```
 
-where:
+各記号は次を意味します。
 
-- \(C(x)\): Seed-VC source content features.
-- \(F_0(x)\): source pitch trajectory after Seed-VC length regulation.
-- \(P_{\mathrm{sem}}(r)\): prompt semantic condition from reference audio.
-- \(P_{\mathrm{mel}}(r)\): prompt mel frames.
-- \(S_{\mathrm{camp}}(r)\): 192-dimensional CAMPPlus global style embedding.
-- \(G_{\theta}\): frozen Seed-VC acoustic generator and vocoder.
+- \(C(x)\): Seed-VCのsource content特徴。
+- \(F_0(x)\): 入力歌唱のピッチ軌跡。
+- \(P_{\mathrm{sem}}(r)\): 参照音声から得たsemantic prompt条件。
+- \(P_{\mathrm{mel}}(r)\): 参照音声のprompt mel。
+- \(S_{\mathrm{camp}}(r)\): 192次元のCAMPPlus global style embedding。
+- \(G_{\theta}\): 凍結したSeed-VCの音響生成器とvocoder。
 
-The project originally tested whether a low-rank style/prompt adapter could move identity without damaging F0:
+最初に試したPrompt Adapterは、以下のような低ランク残差として実装しました。
 
 ```math
 H_t =
@@ -78,13 +78,13 @@ W_{\mathrm{base}}
 + \lambda\,B(A(z_r))
 ```
 
-where \(z_r\) is a prompt summary, \(A\) and \(B\) are low-rank projections, and \(\lambda\) is an inference-time adapter strength.
+ここで \(z_r\) はprompt summary、\(A,B\) は低ランク射影、\(\lambda\) は推論時のadapter強度です。
 
-The first results indicate that prompt selection itself is currently more audible than this adapter.
+ただし現時点では、このAdapterよりもprompt選別そのものの方が聴感上重要そうです。
 
-## Current Best Setting
+## 現在の最良設定
 
-Current preferred setting from blind listening:
+ブラインド試聴で選ばれた現在の設定です。
 
 ```yaml
 condition: P05_12s_raw
@@ -96,7 +96,7 @@ inference_cfg_rate: 0.50
 adapter: none
 ```
 
-Local command:
+ローカル再実行コマンド:
 
 ```powershell
 D:\voice-lab\seed-vc\.venv\Scripts\python.exe -m mosaic_svc.p0.infer_p0 `
@@ -110,43 +110,45 @@ D:\voice-lab\seed-vc\.venv\Scripts\python.exe -m mosaic_svc.p0.infer_p0 `
   --fp16 True
 ```
 
-## Experiments
+## 実験
 
 ### P0: Frozen Seed-VC Baseline
 
-Purpose:
+目的:
 
 ```text
-Measure what can be improved without changing Seed-VC's content encoder, generator, or vocoder.
+Seed-VCのContent Encoder、Generator、Vocoderを変更せず、どこまで改善できるかを見る。
 ```
 
-Conditions tested:
+比較条件:
 
-| ID | Condition | Purpose |
+| ID | 条件 | 確認すること |
 | --- | --- | --- |
-| A | Seed-VC zero-shot | Baseline |
-| B | Fixed canonical prompt | Prompt selection effect |
-| C | Style adapter | CAMPPlus/style-path adaptation effect |
-| D0 | Inference-only prototype correction | CAMPPlus prototype effect |
-| M1 | Prompt bank selection | Prompt mel/semantic effect |
-| M2 | Prompt Adapter | Prompt-path residual effect |
-| M4 | Dialogue speaker profile rerank | Use low-quality speech only as identity signal |
+| A | Seed-VC zero-shot | 基準性能 |
+| B | 固定canonical prompt | prompt選別の効果 |
+| C | Style Adapter | CAMPPlus/style経路の適応効果 |
+| D0 | 推論時prototype補正 | CAMPPlus prototypeの効果 |
+| M1 | Prompt bank選別 | prompt mel/semanticの効果 |
+| M2 | Prompt Adapter | prompt経路への残差補正 |
+| M4 | 雑談profileによるrerank | 低品質会話音声をidentity信号としてだけ使えるか |
 
-### Prompt Bank Experiment
+### Prompt Bank実験
 
-Prompt candidates were cut from high-quality target singing. The most relevant candidates were:
+高品質な対象歌唱から12秒prompt候補を切り出しました。
 
-| Candidate | Segment | Notes |
+重要な候補:
+
+| Candidate | 区間 | メモ |
 | --- | ---: | --- |
-| P05 | 48s-60s | Blind listening winner |
-| P06 | 60s-72s | Previously perceived as slightly clearer |
-| P48_72 | 48s-72s | Numerically strong, not preferred in blind listening |
+| P05 | 48s-60s | ブラインド試聴で勝った |
+| P06 | 60s-72s | 以前は少しハキハキして聞こえた |
+| P48_72 | 48s-72s | 数値上は強いが、試聴では勝たなかった |
 
-### Dialogue Speaker Profile
+### 雑談Speaker Profile
 
-The 25-minute dialogue material was not used as acoustic training data.
+25分の雑談音声は音響学習には使っていません。
 
-It was used to build a CAMPPlus speaker centroid:
+使ったのはCAMPPlusの話者重心だけです。
 
 ```math
 \bar{s}_{\mathrm{dialogue}}
@@ -159,9 +161,9 @@ It was used to build a CAMPPlus speaker centroid:
 \right)
 ```
 
-where \(K\) contains the retained non-outlier dialogue chunks.
+ここで \(K\) は外れ値を除いて残した雑談チャンク集合です。
 
-The prompt rerank score was:
+prompt rerank scoreは次の形です。
 
 ```math
 \operatorname{score}(r)
@@ -176,9 +178,9 @@ The prompt rerank score was:
 \beta Q(r)
 ```
 
-with \(\alpha=0.70\), \(\beta=0.30\), and \(Q(r)\) as an audio-quality score.
+\(\alpha=0.70\)、\(\beta=0.30\)、\(Q(r)\) は音質スコアです。
 
-Observed reranking:
+観測されたrerank:
 
 | Rank | Prompt | CAMPPlus Similarity | Combined Score |
 | ---: | --- | ---: | ---: |
@@ -188,59 +190,59 @@ Observed reranking:
 | 4 | prompt_03_024.00s | 0.483816 | 0.545296 |
 | 5 | prompt_06_060.00s | 0.346047 | 0.529108 |
 
-### Blind Listening Result
+### ブラインド試聴
 
-Blind set:
+ブラインドセット:
 
 ```text
 samples/blind_ittai40_p05_tests/
 ```
 
-Mapping:
+対応表:
 
-| Blind File | Actual Condition |
+| Blind File | 実際の条件 |
 | --- | --- |
 | test_01.mp3 | P48_72 24s raw |
 | test_02.mp3 | P05 12s + Prompt Adapter strength 0.5 |
 | test_03.mp3 | P05 12s raw |
 
-User preference:
+選ばれたもの:
 
 ```text
 test_03.mp3 -> P05 12s raw
 ```
 
-### Metrics
+### メトリクス
 
-Metrics were useful for debugging but did not fully predict listening preference.
+メトリクスはデバッグには有用でしたが、聴感の順位とは一致しませんでした。
 
-| Condition | F0 Corr | Cent RMSE | UV Mismatch | Listening |
+| 条件 | F0 Corr | Cent RMSE | UV Mismatch | 試聴 |
 | --- | ---: | ---: | ---: | --- |
 | P05 12s raw | 0.968344 | 92.98 | 0.139872 | Preferred |
-| P05 12s adapter strength 0.5 | 0.996016 | 48.94 | 0.123041 | Not clearly better |
-| P05 12s adapter strength 1.0 | 0.994381 | 84.41 | 0.224898 | Too strong |
-| P48_72 24s raw | 0.996700 | 44.93 | 0.073418 | Not preferred |
+| P05 12s adapter strength 0.5 | 0.996016 | 48.94 | 0.123041 | 明確には勝たず |
+| P05 12s adapter strength 1.0 | 0.994381 | 84.41 | 0.224898 | 強すぎ |
+| P48_72 24s raw | 0.996700 | 44.93 | 0.073418 | 勝たず |
 
-This is an important negative result:
+重要な負の結果:
 
 ```text
-better F0/UV metrics != better perceived identity or naturalness
+F0/UVメトリクスが良い = 本人らしさや自然さが良い、ではない。
 ```
 
-## Current Research Direction
+## 現在の研究方針
 
-The next useful work is not more random adapter tuning. It is a more systematic prompt-bank study.
+次にやるべきことは、Adapterのランダムな調整ではなく、prompt bankの体系化です。
 
-Planned next steps:
+次の手順:
 
-1. Cut 20-50 high-quality prompt candidates.
-2. Generate the same evaluation clip for each prompt.
-3. Normalize loudness with LUFS, not peak normalization.
-4. Blind-rank prompts by perceived identity and naturalness.
-5. Analyze the winning prompts by register, energy, phonation, silence ratio, and CAMPPlus similarity.
-6. Only after a stable prompt bank exists, distill or adapt its behavior into an adapter.
+1. 高品質歌唱から20〜50個のprompt候補を切る。
+2. 同じ評価クリップで一括生成する。
+3. peakではなくLUFSで音量を揃える。
+4. ブラインドで本人度と自然さを順位付けする。
+5. 勝ったpromptの声区、energy、phonation、無音率、CAMPPlus類似度を分析する。
+6. 安定したprompt bankができてから、その挙動をAdapterへ蒸留する。
 
-## Repository Layout
+## リポジトリ構成
 
 ```text
 configs/
@@ -258,25 +260,23 @@ scripts/
   rank_prompts_by_dialogue_profile.ps1
 ```
 
-## Data Policy
+## データ管理方針
 
-This repository intentionally does not track:
+このリポジトリには以下を入れません。
 
-- source datasets
-- long generated WAV files
-- model checkpoints
+- 元データセット
+- 長い生成WAV
+- モデルcheckpoint
 - pretrained weights
-- virtual environments
+- virtual environment
 
-Small MP3 comparison clips may be tracked when they are useful for experiment review.
+実験確認に必要な小さいMP3サンプルだけは例外的に入れます。
 
-## Status
-
-Current status:
+## 現在の状態
 
 ```text
-Prompt-bank selection is the strongest practical lever found so far.
-Prompt Adapter exists, but is secondary until it wins blind listening.
-Dialogue data is useful as a speaker-profile signal, not as acoustic training data.
+現時点で一番効いているのはprompt bank選別。
+Prompt Adapterは実装済みだが、ブラインド試聴で勝つまでは二軍。
+雑談データはspeaker profile信号としては使えるが、音響学習には使わない。
 ```
 
