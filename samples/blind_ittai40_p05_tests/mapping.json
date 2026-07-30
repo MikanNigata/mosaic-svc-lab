@@ -1,0 +1,17 @@
+﻿[
+    {
+        "file":  "test_01.mp3",
+        "source":  "P48_72_24s_raw",
+        "path":  "D:\\voice-lab\\share_audio\\mosaic_M1_P48_72_24s_prompt_ittai40_cfg050_steps60.mp3"
+    },
+    {
+        "file":  "test_02.mp3",
+        "source":  "P05_12s_adapter_s050",
+        "path":  "D:\\voice-lab\\share_audio\\mosaic_M2_P05_prompt_adapter_s050_ittai40_cfg050_steps60.mp3"
+    },
+    {
+        "file":  "test_03.mp3",
+        "source":  "P05_12s_raw",
+        "path":  "D:\\voice-lab\\share_audio\\mosaic_M1_P05_raw_ittai40_cfg050_steps60.mp3"
+    }
+]

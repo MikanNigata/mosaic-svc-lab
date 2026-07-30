@@ -1,0 +1,28 @@
+# Python / local env
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local generated artifacts
+artifacts/
+out/
+logs/
+tmp/
+checkpoints/
+models/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Large local audio/data by default.
+data/
+*.wav
+*.flac
+*.m4a
+*.webm
+
+# Keep curated small MP3 samples.
+!samples/**/*.mp3
+

@@ -1,0 +1,32 @@
+version: 2026-07-31
+
+dependency:
+  seed_vc_repo: D:\voice-lab\seed-vc
+  seed_vc_fork: https://github.com/MikanNigata/seed-vc
+  seed_vc_commit_with_mosaic_tools: 2565e98
+
+current_best:
+  name: P05_12s_raw
+  source: D:\voice-lab\data\guide_vocals\ittai_itsukara_head_40s.wav
+  prompt: D:\voice-lab\out\mosaic_svc\p0\prompt_candidates\dadadada_12s\prompt_05_048.00s.wav
+  prompt_start_seconds: 48
+  prompt_duration_seconds: 12
+  diffusion_steps: 60
+  inference_cfg_rate: 0.50
+  prompt_seconds: 12
+  f0_condition: true
+  fp16: true
+  adapter: none
+
+listening_decision:
+  blind_set: samples/blind_ittai40_p05_tests
+  preferred_file: test_03.mp3
+  preferred_condition: P05_12s_raw
+  note: User reported test03 may be best; mapping showed test03 was P05 12s raw.
+
+next_experiments:
+  - Build 20-50 prompt candidates from high-quality singing and blind-rank them.
+  - Keep Prompt Adapter as secondary until it creates obvious listening improvement.
+  - Test prompt routing by register instead of one universal prompt.
+  - Improve guide-vocal separation before deeper model changes.
+
