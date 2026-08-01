@@ -47,3 +47,16 @@ P8 step 600/600 is selected because it improves both metrics over baseline and k
 Use the fixed P07 high-register canonical prompt, K/V LoRA layers 4/8/12 step 600, and Style-Slice Adapter step 600. Keep all base Seed-VC weights frozen. The adaptation assets are small standalone `.pt` files and should be evaluated on new songs before any full-length render.
 
 P8 is a Conditional Go, not proof of final perceptual quality. Required next checks are blind listening, explicit F0/UV scoring, consonant/ending preservation, and full-song artifact review.
+
+## P9-P10 continuation
+
+P9 confirmed that F0/UV metrics were already integrated in the pipeline. Relative to the frozen baseline, selected P8 changed F0 correlation by at most `0.016` and cent RMSE by at most about `12 cents` on the three held-out clips, which was accepted under the No-Harm rule.
+
+P10 adds a differentiable identity objective through frozen BigVGAN, Kaldi fbank, and frozen CAMPPlus. Only the Style-Slice Adapter is updated; P6 K/V LoRA and all Seed-VC base weights remain frozen.
+
+| Condition | Identity | Quality | F0 corr | Cent RMSE | UV mismatch | Rerank |
+|---|---:|---:|---:|---:|---:|---:|
+| P8 selected | 0.724428 | 0.925862 | 0.927315 | 102.627 | 0.121775 | 0.770352 |
+| P10 identity-aware | **0.724527** | **0.926010** | 0.927209 | 102.864 | **0.121259** | **0.770500** |
+
+P10 is a small but consistent No-Harm improvement and becomes the next default. No additional identity-loss weight sweep is planned.
