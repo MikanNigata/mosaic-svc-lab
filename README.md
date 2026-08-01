@@ -206,12 +206,57 @@ F0指標が良い
 | ブラインドセット生成 | 実装済み |
 | ffmpeg 2-pass LUFS正規化 | 実装済み、任意 |
 | 相対声区・F0幅・energy・qualityによるTop-k検索 | Prototype実装済み |
-| HQ-SVC backend実推論アダプター | 未実装 |
-| 自動Prompt切り出し・特徴抽出 | 未実装 |
-| Identity Memory | 未実装 |
-| 生成結果の自動rerank | 未実装 |
-| 個人適応 | 未実装・意図的に延期 |
+| Seed-VC / HQ-SVC定型backend | Windows実推論まで実装済み |
+| backend環境診断 | CUDA / Python / ffmpeg確認を実装済み |
+| 自動Prompt切り出し・特徴抽出 | 実装済み |
+| CAMPPlus Identity Memory | 雑談centroid構築・出力採点を実装済み |
+| F0 / UV / 音質評価と自動rerank | 実装済み |
+| 生成・評価・rerank・ブラインド試聴の一括実行 | 実装済み |
+| Style / Prompt Adapter | Seed fork側で実装済み、現行baselineでは不採用 |
 | GUI / リアルタイム変換 | 対象外 |
+
+---
+
+## 統合パイプライン
+
+音声指標を使うため、Seed-VCのPython環境へaudio extras込みでインストールします。
+
+```powershell
+cd D:\voice-lab\mosaic-svc-lab
+D:\voice-lab\seed-vc\.venv\Scripts\python.exe -m pip install -e ".[audio]"
+```
+
+backend診断:
+
+```powershell
+mosaic-lab doctor configs\experiments\p1_p3_windows.example.json
+```
+
+高品質歌唱から12秒Prompt Bankを作成:
+
+```powershell
+mosaic-lab enroll --source target_vocal.wav --output out\prompt_bank
+```
+
+低品質雑談は生成Referenceにせず、Identity Memoryだけへ登録:
+
+```powershell
+mosaic-lab identity-build `
+  --input dialogue_25min.wav `
+  --output out\identity.pt `
+  --seed-repo D:\voice-lab\seed-vc
+```
+
+生成、F0/UV・音質評価、Identity採点、rerank、LUFS統一ブラインドセット作成を一括実行:
+
+```powershell
+mosaic-lab pipeline configs\experiments\p1_p3_windows.example.json `
+  --identity-profile out\identity.pt `
+  --seed-repo D:\voice-lab\seed-vc `
+  --blind --normalize --fail-fast
+```
+
+バックエンドは別venv・別プロセスのままです。実験定義で`command`を手書きする旧方式も引き続き利用できます。
 
 ---
 
@@ -568,12 +613,11 @@ HQ-SVC / SoulX-Singer-SVC
 
 ## 現在の次タスク
 
-1. HQ-SVCを公式環境に近いWSL/Linux環境で動作確認する
-2. 非対話推論用の薄いbackend adapterを作る
-3. Seed P05とHQ-SVC P05を同一条件でブラインド比較する
-4. 高品質歌唱から12秒Prompt Bankを構築する
-5. 固定P05、global best、Top-1、Top-3 Oracleを比較する
-6. その後にだけ、低品質雑談由来のIdentity Memoryへ進む
+1. 未学習曲・複数声区の評価クリップを増やし、P05固定と動的Top-kをブラインド比較する
+2. Identityスコアがマイク・残響ではなく本人性を拾うか、異話者negativeを含めて校正する
+3. 自動順位と人間選好の相関を測り、rerank重みをvalidation setだけで決める
+4. P05固定が引き続き勝つ場合はMemoryを増やさず、Seed-VCを実用baselineとして固定する
+5. 本人度だけが不足すると確認できた場合に限り、軽量話者適応を再検討する
 
 Mosaic-SVCの研究上の核心はP3です。
 

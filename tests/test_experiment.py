@@ -60,6 +60,25 @@ class ExperimentTests(unittest.TestCase):
         jobs = plan_jobs(config)
         self.assertEqual([job.condition_id for job in jobs], ["enabled"])
 
+    def test_seed_backend_template_builds_command(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config_path = root / "config.json"
+            config_path.write_text("{}", encoding="utf-8")
+            config = {
+                "experiment_id": "P1",
+                "output_root": str(root / "out"),
+                "backends": {"seed": {"kind": "seed-vc", "repo": str(root / "seed-vc")}},
+                "sources": {"E1": "source.wav"},
+                "references": {"P05": "prompt.wav"},
+                "conditions": [{"id": "seed", "backend": "seed", "reference": "P05", "settings": {"cfg_rate": 0.5}}],
+            }
+            job = plan_jobs(config, config_path=config_path)[0]
+            self.assertIn("mosaic_svc.p0.infer_p0", job.command)
+            self.assertIn("0.5", job.command)
+            self.assertEqual(job.cwd, root / "seed-vc")
+            self.assertIsNotNone(job.collect_glob)
+
 
 if __name__ == "__main__":
     unittest.main()

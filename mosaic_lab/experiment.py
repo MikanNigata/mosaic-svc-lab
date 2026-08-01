@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from .backends import build_backend_command
+
 
 @dataclass(frozen=True)
 class PlannedJob:
@@ -84,6 +86,9 @@ def plan_jobs(config: Mapping[str, Any], *, config_path: str | Path | None = Non
 
     sources = _require_mapping(config.get("sources"), "sources")
     references = _require_mapping(config.get("references"), "references")
+    backends = config.get("backends", {})
+    if not isinstance(backends, Mapping):
+        raise ValueError("backends must be an object")
     conditions = config.get("conditions")
     if not isinstance(conditions, list) or not conditions:
         raise ValueError("conditions must be a non-empty array")
@@ -104,8 +109,10 @@ def plan_jobs(config: Mapping[str, Any], *, config_path: str | Path | None = Non
             raise ValueError(f"condition {condition_id} references unknown reference {reference_id!r}")
         reference_path = resolve_path(_require_nonempty_string(references[reference_id], f"references.{reference_id}"))
         raw_command = condition.get("command")
-        if not isinstance(raw_command, list) or not raw_command or not all(isinstance(part, str) for part in raw_command):
+        if raw_command is not None and (not isinstance(raw_command, list) or not raw_command or not all(isinstance(part, str) for part in raw_command)):
             raise ValueError(f"condition {condition_id}.command must be a non-empty string array")
+        if raw_command is None and backend not in backends:
+            raise ValueError(f"condition {condition_id} has no command and references unknown backend {backend!r}")
 
         condition_env = condition.get("env", {})
         if not isinstance(condition_env, Mapping) or not all(isinstance(k, str) and isinstance(v, str) for k, v in condition_env.items()):
@@ -130,12 +137,22 @@ def plan_jobs(config: Mapping[str, Any], *, config_path: str | Path | None = Non
                     "output_file": str(output_file),
                     "config_dir": str(config_dir),
                 }
-                command = tuple(_format(part, context, f"{condition_id}.command") for part in raw_command)
-                cwd_value = condition.get("cwd")
-                cwd = resolve_path(_format(cwd_value, context, f"{condition_id}.cwd")) if isinstance(cwd_value, str) else None
+                if raw_command is None:
+                    command, cwd, default_collect = build_backend_command(
+                        backend,
+                        _require_mapping(backends[backend], f"backends.{backend}"),
+                        condition,
+                        context,
+                        config_dir=config_dir,
+                    )
+                else:
+                    command = tuple(_format(part, context, f"{condition_id}.command") for part in raw_command)
+                    cwd_value = condition.get("cwd")
+                    cwd = resolve_path(_format(cwd_value, context, f"{condition_id}.cwd")) if isinstance(cwd_value, str) else None
+                    default_collect = None
                 environment = {key: _format(value, context, f"{condition_id}.env.{key}") for key, value in condition_env.items()}
                 collect_value = condition.get("collect_glob")
-                collect_glob = _format(collect_value, context, f"{condition_id}.collect_glob") if isinstance(collect_value, str) else None
+                collect_glob = _format(collect_value, context, f"{condition_id}.collect_glob") if isinstance(collect_value, str) else default_collect
                 jobs.append(
                     PlannedJob(
                         experiment_id=experiment_id,

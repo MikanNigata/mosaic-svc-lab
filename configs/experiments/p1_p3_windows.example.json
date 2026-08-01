@@ -1,0 +1,29 @@
+{
+  "experiment_id": "P1-P3-WINDOWS-001",
+  "output_root": "D:/voice-lab/out/mosaic_svc/experiments",
+  "seeds": [1234],
+  "backends": {
+    "seed": {
+      "kind": "seed-vc",
+      "repo": "D:/voice-lab/seed-vc",
+      "python": ".venv/Scripts/python.exe",
+      "defaults": {"diffusion_steps": 60, "cfg_rate": 0.50, "prompt_seconds": 12, "f0_condition": true, "fp16": true}
+    },
+    "hq": {
+      "kind": "hq-svc",
+      "repo": "D:/voice-lab/hq-svc",
+      "script": "run_windows_infer.ps1",
+      "defaults": {"skip_download": true, "auto_f0": false, "shift_key": 0}
+    }
+  },
+  "sources": {"E1": "D:/voice-lab/data/guide_vocals/ittai_itsukara_head_15s.wav"},
+  "references": {
+    "P05": "D:/voice-lab/out/mosaic_svc/p0/prompt_candidates/dadadada_12s/prompt_05_048.00s.wav",
+    "P07": "D:/voice-lab/out/mosaic_svc/p0/prompt_candidates/dadadada_12s/prompt_07_072.00s.wav"
+  },
+  "conditions": [
+    {"id": "S_P05", "backend": "seed", "reference": "P05"},
+    {"id": "S_P07", "backend": "seed", "reference": "P07"},
+    {"id": "HQ_P05", "backend": "hq", "reference": "P05"}
+  ]
+}
