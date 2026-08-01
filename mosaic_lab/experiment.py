@@ -74,8 +74,9 @@ def load_experiment(path: str | Path) -> dict[str, Any]:
 
 def plan_jobs(config: Mapping[str, Any], *, config_path: str | Path | None = None) -> list[PlannedJob]:
     experiment_id = _require_nonempty_string(config.get("experiment_id"), "experiment_id")
-    output_root = Path(_require_nonempty_string(config.get("output_root", "experiments"), "output_root"))
+    raw_output_root = Path(_require_nonempty_string(config.get("output_root", "experiments"), "output_root"))
     config_dir = Path(config_path).resolve().parent if config_path else Path.cwd()
+    output_root = raw_output_root if raw_output_root.is_absolute() else (config_dir / raw_output_root).resolve()
 
     def resolve_path(value: str) -> Path:
         candidate = Path(value)

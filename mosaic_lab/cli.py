@@ -12,7 +12,13 @@ from .retrieval import dump_ranking, load_json, load_jsonl, rank_prompts
 def _command_run(args: argparse.Namespace) -> int:
     config = load_experiment(args.config)
     jobs = plan_jobs(config, config_path=args.config)
-    manifest = args.manifest or Path(config.get("output_root", "experiments")) / str(config["experiment_id"]) / "manifest.jsonl"
+    if args.manifest:
+        manifest = args.manifest
+    else:
+        output_root = Path(str(config.get("output_root", "experiments")))
+        if not output_root.is_absolute():
+            output_root = (args.config.resolve().parent / output_root).resolve()
+        manifest = output_root / str(config["experiment_id"]) / "manifest.jsonl"
     results = run_jobs(jobs, manifest_path=manifest, dry_run=args.dry_run, fail_fast=args.fail_fast)
     summary = {
         "planned": len(results),

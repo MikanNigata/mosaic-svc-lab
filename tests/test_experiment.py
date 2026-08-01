@@ -33,6 +33,7 @@ class ExperimentTests(unittest.TestCase):
             self.assertEqual(job.seed, 11)
             self.assertEqual(job.command[-1], "11")
             self.assertTrue(str(job.output_file).endswith("output.wav"))
+            self.assertTrue(job.output_file.is_relative_to(root / "out"))
 
     def test_disabled_condition_is_skipped(self) -> None:
         config = {
