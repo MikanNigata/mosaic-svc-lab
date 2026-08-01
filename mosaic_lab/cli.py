@@ -1,12 +1,23 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from pathlib import Path
 
+from .audio import build_prompt_bank, evaluate_manifest, rerank
+from .backends import doctor
 from .blind import load_successful_results, prepare_blind_set
 from .experiment import load_experiment, plan_jobs, run_jobs
+from .identity import build_identity_profile, score_manifest, write_candidate_manifest
 from .retrieval import dump_ranking, load_json, load_jsonl, rank_prompts
+
+
+def _default_manifest(config: dict, config_path: Path) -> Path:
+    output_root = Path(str(config.get("output_root", "experiments")))
+    if not output_root.is_absolute():
+        output_root = (config_path.resolve().parent / output_root).resolve()
+    return output_root / str(config["experiment_id"]) / "manifest.jsonl"
 
 
 def _command_run(args: argparse.Namespace) -> int:
@@ -15,10 +26,7 @@ def _command_run(args: argparse.Namespace) -> int:
     if args.manifest:
         manifest = args.manifest
     else:
-        output_root = Path(str(config.get("output_root", "experiments")))
-        if not output_root.is_absolute():
-            output_root = (args.config.resolve().parent / output_root).resolve()
-        manifest = output_root / str(config["experiment_id"]) / "manifest.jsonl"
+        manifest = _default_manifest(config, args.config)
     results = run_jobs(jobs, manifest_path=manifest, dry_run=args.dry_run, fail_fast=args.fail_fast)
     summary = {
         "planned": len(results),
@@ -72,6 +80,96 @@ def _command_blind(args: argparse.Namespace) -> int:
     return 0
 
 
+def _command_doctor(args: argparse.Namespace) -> int:
+    config = load_experiment(args.config)
+    results = doctor(config.get("backends", {}))
+    print(json.dumps(results, ensure_ascii=False, indent=2))
+    return 0 if all(item["ok"] for item in results) else 1
+
+
+def _command_enroll(args: argparse.Namespace) -> int:
+    manifest = build_prompt_bank(
+        args.source,
+        args.output,
+        clip_seconds=args.clip_seconds,
+        hop_seconds=args.hop_seconds,
+        min_seconds=args.min_seconds,
+        ffmpeg=args.ffmpeg,
+    )
+    print(json.dumps({"prompt_index": str(manifest)}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _command_identity_build(args: argparse.Namespace) -> int:
+    build_identity_profile(args.input, args.output, args.seed_repo, args.python)
+    print(json.dumps({"identity_profile": str(args.output)}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _write_ranked(rows: list[dict], output: Path) -> None:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if not rows:
+        return
+    with output.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()), extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+    report = output.with_suffix(".md")
+    lines = ["# Mosaic-SVC ranking", "", "| Rank | Source | Condition | Backend | Score | Identity | F0 corr | Cent RMSE | UV mismatch |", "| ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |"]
+    for index, row in enumerate(rows, start=1):
+        identity = row.get("identity_similarity", "")
+        lines.append(
+            f"| {index} | {row['source_id']} | {row['condition_id']} | {row['backend']} | "
+            f"{float(row['rerank_score']):.4f} | {identity if identity == '' else f'{float(identity):.4f}'} | "
+            f"{float(row['f0_corr']):.4f} | {float(row['cent_rmse']):.2f} | {float(row['uv_mismatch']):.4f} |"
+        )
+    report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _evaluate(args: argparse.Namespace) -> tuple[list[dict], Path]:
+    output = args.output or args.manifest.with_name("evaluation.csv")
+    rows = evaluate_manifest(args.manifest, output)
+    identity_scores = None
+    if args.identity_profile:
+        candidate_manifest = output.with_name("identity_candidates.jsonl")
+        write_candidate_manifest(rows, candidate_manifest)
+        identity_output = output.with_name("identity_scores.csv")
+        identity_scores = score_manifest(candidate_manifest, args.identity_profile, identity_output, args.seed_repo, args.python)
+    ranked = rerank(rows, identity_scores=identity_scores)
+    ranking = output.with_name("ranking.csv")
+    _write_ranked(ranked, ranking)
+    return ranked, ranking
+
+
+def _command_evaluate(args: argparse.Namespace) -> int:
+    ranked, ranking = _evaluate(args)
+    print(json.dumps({"evaluated": len(ranked), "ranking": str(ranking)}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _command_pipeline(args: argparse.Namespace) -> int:
+    config = load_experiment(args.config)
+    manifest = _default_manifest(config, args.config)
+    results = run_jobs(plan_jobs(config, config_path=args.config), manifest_path=manifest, fail_fast=args.fail_fast)
+    if any(item["status"] == "failed" for item in results):
+        print(json.dumps({"status": "failed", "manifest": str(manifest)}, ensure_ascii=False, indent=2))
+        return 1
+    evaluation_args = argparse.Namespace(
+        manifest=manifest,
+        output=manifest.with_name("evaluation.csv"),
+        identity_profile=args.identity_profile,
+        seed_repo=args.seed_repo,
+        python=args.python,
+    )
+    ranked, ranking = _evaluate(evaluation_args)
+    blind_output = None
+    if args.blind:
+        blind_output = manifest.with_name("listening")
+        prepare_blind_set(load_successful_results(manifest), blind_output, random_seed=args.seed, normalize=args.normalize, ffmpeg=args.ffmpeg)
+    print(json.dumps({"status": "succeeded", "jobs": len(results), "ranked": len(ranked), "manifest": str(manifest), "ranking": str(ranking), "listening": str(blind_output) if blind_output else None}, ensure_ascii=False, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mosaic-lab", description="Mosaic-SVC backend comparison and retrieval utilities")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -99,6 +197,46 @@ def build_parser() -> argparse.ArgumentParser:
     blind_parser.add_argument("--normalize", action="store_true", help="apply two-pass ffmpeg loudnorm")
     blind_parser.add_argument("--ffmpeg", default="ffmpeg")
     blind_parser.set_defaults(func=_command_blind)
+
+    doctor_parser = subparsers.add_parser("doctor", help="check configured backend environments")
+    doctor_parser.add_argument("config", type=Path)
+    doctor_parser.set_defaults(func=_command_doctor)
+
+    enroll_parser = subparsers.add_parser("enroll", help="slice high-quality singing and build a Prompt Bank index")
+    enroll_parser.add_argument("--source", required=True, type=Path)
+    enroll_parser.add_argument("--output", required=True, type=Path)
+    enroll_parser.add_argument("--clip-seconds", type=float, default=12.0)
+    enroll_parser.add_argument("--hop-seconds", type=float, default=12.0)
+    enroll_parser.add_argument("--min-seconds", type=float, default=8.0)
+    enroll_parser.add_argument("--ffmpeg", default="ffmpeg")
+    enroll_parser.set_defaults(func=_command_enroll)
+
+    identity_parser = subparsers.add_parser("identity-build", help="build CAMPPlus Identity Memory from long dialogue")
+    identity_parser.add_argument("--input", required=True, type=Path)
+    identity_parser.add_argument("--output", required=True, type=Path)
+    identity_parser.add_argument("--seed-repo", required=True, type=Path)
+    identity_parser.add_argument("--python", type=Path)
+    identity_parser.set_defaults(func=_command_identity_build)
+
+    evaluate_parser = subparsers.add_parser("evaluate", help="measure F0/UV/quality and rerank successful outputs")
+    evaluate_parser.add_argument("--manifest", required=True, type=Path)
+    evaluate_parser.add_argument("--output", type=Path)
+    evaluate_parser.add_argument("--identity-profile", type=Path)
+    evaluate_parser.add_argument("--seed-repo", type=Path, default=Path("D:/voice-lab/seed-vc"))
+    evaluate_parser.add_argument("--python", type=Path)
+    evaluate_parser.set_defaults(func=_command_evaluate)
+
+    pipeline_parser = subparsers.add_parser("pipeline", help="run generation, evaluation, reranking, and optional blind-set creation")
+    pipeline_parser.add_argument("config", type=Path)
+    pipeline_parser.add_argument("--identity-profile", type=Path)
+    pipeline_parser.add_argument("--seed-repo", type=Path, default=Path("D:/voice-lab/seed-vc"))
+    pipeline_parser.add_argument("--python", type=Path)
+    pipeline_parser.add_argument("--fail-fast", action="store_true")
+    pipeline_parser.add_argument("--blind", action="store_true")
+    pipeline_parser.add_argument("--normalize", action="store_true")
+    pipeline_parser.add_argument("--seed", type=int, default=20260801)
+    pipeline_parser.add_argument("--ffmpeg", default="ffmpeg")
+    pipeline_parser.set_defaults(func=_command_pipeline)
 
     return parser
 

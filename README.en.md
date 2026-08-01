@@ -164,12 +164,32 @@ Legacy research remains available:
 | Blind-listening set generation | implemented |
 | Optional two-pass ffmpeg loudness normalization | implemented |
 | Top-k retrieval from relative register, F0 span, energy, and quality | prototype implemented |
-| HQ-SVC inference adapter | not implemented |
-| Automatic prompt slicing and feature extraction | not implemented |
-| Identity Memory | not implemented |
-| Automatic output reranking | not implemented |
-| Target adaptation | intentionally deferred |
+| Seed-VC / HQ-SVC backend presets | implemented and verified on Windows |
+| Backend doctor | CUDA, Python, and ffmpeg checks implemented |
+| Automatic prompt slicing and feature extraction | implemented |
+| CAMPPlus Identity Memory | dialogue centroid and output scoring implemented |
+| F0 / UV / quality evaluation and output reranking | implemented |
+| End-to-end generation, evaluation, reranking, and blind set | implemented |
+| Style / Prompt Adapter | implemented in the Seed fork; excluded from the current baseline |
 | GUI / real-time conversion | out of scope |
+
+---
+
+## Integrated pipeline
+
+Install the audio extras in the Seed-VC environment, then use one command for generation, objective checks, identity scoring, reranking, and a loudness-normalized blind set.
+
+```powershell
+cd D:\voice-lab\mosaic-svc-lab
+D:\voice-lab\seed-vc\.venv\Scripts\python.exe -m pip install -e ".[audio]"
+mosaic-lab doctor configs\experiments\p1_p3_windows.example.json
+mosaic-lab pipeline configs\experiments\p1_p3_windows.example.json `
+  --identity-profile out\identity.pt `
+  --seed-repo D:\voice-lab\seed-vc `
+  --blind --normalize --fail-fast
+```
+
+`mosaic-lab enroll` builds a 12-second Prompt Bank from clean singing. `mosaic-lab identity-build` converts long dialogue into a robust CAMPPlus centroid without using that dialogue as a generation reference.
 
 ---
 
@@ -446,12 +466,11 @@ Use voice conversion only with appropriate consent and after checking copyright,
 
 ## Immediate next tasks
 
-1. Validate HQ-SVC in an environment close to its official setup.
-2. Add a thin non-interactive backend adapter.
-3. Blind-compare Seed P05 and HQ-SVC P05 under identical conditions.
-4. Build a 12-second prompt bank from clean target singing.
-5. Compare fixed P05, global best, top-1, and top-3 human oracle.
-6. Only then implement Identity Memory from long low-quality dialogue.
+1. Add held-out songs and register-specific clips to the P05 versus dynamic top-k blind comparison.
+2. Calibrate Identity Memory with other-speaker negatives so microphone and reverb do not dominate the score.
+3. Measure correlation between automatic ranking and human preference, tuning weights only on validation data.
+4. Keep P05 as the practical baseline if dynamic memory does not beat it consistently.
+5. Revisit lightweight target adaptation only when identity is the isolated remaining failure.
 
 The main research question remains P3:
 

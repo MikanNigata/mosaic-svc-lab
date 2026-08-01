@@ -2,7 +2,7 @@
 
 ## Goal
 
-Answer two questions before implementing Identity Memory or personal adaptation:
+Answer two questions before personal adaptation:
 
 1. Does HQ-SVC provide a better frozen zero-shot baseline than the current Seed-VC P05 condition?
 2. Does source-conditioned reference retrieval outperform a fixed or global-best reference?
@@ -15,7 +15,7 @@ D:\voice-lab\seed-vc\.venv\Scripts\python.exe -m pip install -e .
 D:\voice-lab\seed-vc\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-The tools use only the Python standard library. Backend dependencies remain isolated.
+Core orchestration uses the Python standard library. Install `.[audio]` for Prompt Bank feature extraction and objective audio metrics. Backend model dependencies remain isolated.
 
 ## P1-HQ
 
@@ -25,7 +25,11 @@ Copy and edit:
 configs/experiments/p1_hq_baseline.example.json
 ```
 
-The Seed condition is enabled. The HQ-SVC condition is disabled until a local non-interactive inference adapter exists. HQ-SVC's official release is Linux/CUDA-oriented and exposes a Gradio application; create a small local `mosaic_infer.sh` adapter around the installed inference function, then enable the condition.
+The current Windows port provides non-interactive Seed-VC and HQ-SVC backend presets. Use `p1_p3_windows.example.json` as the working example and verify both environments first:
+
+```powershell
+mosaic-lab doctor configs/experiments/p1_p3_windows.example.json
+```
 
 Preview commands without executing them:
 
@@ -109,12 +113,28 @@ Interpretation:
 - R1 dominates: use one stable reference for this backend.
 - R3 cannot beat R0: stop before Identity Memory and revisit the backend or bank.
 
-## Not in scope yet
+## P3 Identity reranking
 
-- dialogue Identity Memory
-- output speaker reranking
-- adapters or LoRA
-- target fine-tuning
-- phoneme-aware retrieval
+Build Identity Memory from dialogue without using it as a generation reference:
+
+```powershell
+mosaic-lab identity-build --input dialogue.wav --output identity.pt --seed-repo D:/voice-lab/seed-vc
+```
+
+Run generation, objective evaluation, identity scoring, reranking, and blind-set creation:
+
+```powershell
+mosaic-lab pipeline configs/experiments/p1_p3_windows.example.json `
+  --identity-profile identity.pt `
+  --seed-repo D:/voice-lab/seed-vc `
+  --blind --normalize --fail-fast
+```
+
+Identity scoring is a candidate-selection signal, not an acceptance oracle. Validate against blind human preference and include other-speaker negatives before tuning its weight.
+
+## Still out of scope
+
+- target full fine-tuning
+- phoneme-aware frame retrieval
 - realtime inference
 - GUI work

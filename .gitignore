@@ -9,7 +9,8 @@ dist/
 
 # Local generated artifacts
 artifacts/
-experiments/
+/experiments/
+*_local.json
 out/
 logs/
 tmp/
