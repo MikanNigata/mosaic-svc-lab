@@ -1,0 +1,27 @@
+{
+  "experiment_id": "P8-COMBINED-EXAMPLE",
+  "output_root": "D:/voice-lab/out/mosaic_svc/experiments",
+  "seeds": [1234],
+  "backends": {
+    "seed": {
+      "kind": "seed-vc",
+      "repo": "D:/voice-lab/seed-vc",
+      "python": ".venv/Scripts/python.exe",
+      "defaults": {"diffusion_steps": 60, "cfg_rate": 0.50, "prompt_seconds": 12, "f0_condition": true, "fp16": true}
+    }
+  },
+  "sources": {"evaluation_clip": "D:/voice-lab/data/guide_vocals/input.wav"},
+  "references": {"canonical": "D:/voice-lab/data/target_clean/canonical.wav"},
+  "conditions": [
+    {"id": "BASE", "backend": "seed", "reference": "canonical"},
+    {
+      "id": "P8_DEFAULT",
+      "backend": "seed",
+      "reference": "canonical",
+      "settings": {
+        "kv_lora": "D:/voice-lab/out/mosaic_svc/p6/kv_lora_step_000600.pt",
+        "style_adapter": "D:/voice-lab/out/mosaic_svc/p7/style_adapter_step_000600.pt"
+      }
+    }
+  ]
+}

@@ -46,6 +46,8 @@ def build_backend_command(
             str(settings.get("f0_condition", True)),
             "--fp16",
             str(settings.get("fp16", True)),
+            "--seed",
+            str(context["seed"]),
         ]
         optional = {
             "style_audio": "--style-audio",
@@ -54,6 +56,8 @@ def build_backend_command(
             "prompt_adapter_strength": "--prompt-adapter-strength",
             "prototype_bank": "--prototype-bank",
             "prototype_strength": "--prototype-strength",
+            "prompt_mel_lora": "--prompt-mel-lora",
+            "kv_lora": "--kv-lora",
         }
         for key, flag in optional.items():
             if settings.get(key) is not None:

@@ -608,17 +608,18 @@ HQ-SVC / SoulX-Singer-SVC
 - [P1 / P2 Runbook](docs/experiments/P1_P2_RUNBOOK.md)
 - [旧R1.6 Architecture](docs/architecture/MOSAIC_SVC_R16.md)
 - [Seed Prompt Selection Experiments](docs/experiments/2026-07-31-prompt-selection.md)
+- [P4-P8 Frozen Seed-VC Adaptation](docs/experiments/2026-08-02-p4-p8-adaptation.md)
 
 ---
 
 ## 現在の次タスク
 
-1. 未学習曲・複数声区の評価クリップを増やし、P05固定と動的Top-kをブラインド比較する
-2. Identityスコアがマイク・残響ではなく本人性を拾うか、異話者negativeを含めて校正する
-3. 自動順位と人間選好の相関を測り、rerank重みをvalidation setだけで決める
-4. P05固定が引き続き勝つ場合はMemoryを増やさず、Seed-VCを実用baselineとして固定する
-5. 本人度だけが不足すると確認できた場合に限り、軽量話者適応を再検討する
+1. P8採用版を未学習のフル曲で評価し、長時間・高音・語尾の破綻を確認する
+2. F0 correlation、cent RMSE、UV errorを生成pipelineへ正式統合する
+3. P8と固定Seed baselineをLUFS統一したブラインド試聴で比較する
+4. 高品質歌唱Identity profileへ異話者negativeを追加し、本人度閾値を校正する
+5. P8が主観評価でも勝った場合だけ、話者条件付きlossとStreaming Studentへ進む
 
-Mosaic-SVCの研究上の核心はP3です。
+現在の実用候補はP8です。
 
-> 高品質な短時間音声を生成用Memory、低品質を含む長時間音声をIdentity Memoryとして分離し、固定ゼロショットSVCのReference選択と出力rerankだけで本人性を改善できるか。
+> Frozen Seed-VCへK/V-only LoRAとglobal Style-Slice Adapterを独立に学習し、両者を組み合わせて本人度と音質を同時に改善できるか。

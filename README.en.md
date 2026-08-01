@@ -461,17 +461,18 @@ Use voice conversion only with appropriate consent and after checking copyright,
 - [P1 / P2 Runbook](docs/experiments/P1_P2_RUNBOOK.md)
 - [Legacy R1.6 Architecture](docs/architecture/MOSAIC_SVC_R16.md)
 - [Seed Prompt Selection Experiments](docs/experiments/2026-07-31-prompt-selection.md)
+- [P4-P8 Frozen Seed-VC Adaptation](docs/experiments/2026-08-02-p4-p8-adaptation.md)
 
 ---
 
 ## Immediate next tasks
 
-1. Add held-out songs and register-specific clips to the P05 versus dynamic top-k blind comparison.
-2. Calibrate Identity Memory with other-speaker negatives so microphone and reverb do not dominate the score.
-3. Measure correlation between automatic ranking and human preference, tuning weights only on validation data.
-4. Keep P05 as the practical baseline if dynamic memory does not beat it consistently.
-5. Revisit lightweight target adaptation only when identity is the isolated remaining failure.
+1. Evaluate the selected P8 condition on held-out full songs for long-form, high-register, and ending artifacts.
+2. Integrate F0 correlation, cent RMSE, and UV error into the generation pipeline.
+3. Run LUFS-matched blind listening between P8 and the fixed Seed baseline.
+4. Calibrate the high-quality singing identity profile with other-speaker negatives.
+5. Proceed to identity-aware loss and the Streaming Student only if P8 also wins subjective evaluation.
 
-The main research question remains P3:
+The current practical candidate is P8:
 
-> Can quality-partitioned Acoustic and Identity Memory improve target identity through reference retrieval and output reranking while the zero-shot SVC backend remains frozen?
+> Can independently trained K/V-only LoRA and global Style-Slice adapters improve identity and quality together while the Seed-VC base remains frozen?
