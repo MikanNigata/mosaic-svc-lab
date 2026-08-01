@@ -1,0 +1,56 @@
+version: 2026-08-01
+
+objective: >
+  Compare P00-P03 Mosaic-SVC prompt/adaptation hypotheses on the same
+  40-second guide vocal while keeping Seed-VC frozen.
+
+runtime:
+  seed_vc_repo: D:\voice-lab\seed-vc
+  python: D:\voice-lab\seed-vc\.venv\Scripts\python.exe
+  output_root: D:\voice-lab\out\mosaic_svc\p03_compare_ittai40
+
+input:
+  source: D:\voice-lab\data\guide_vocals\ittai_itsukara_head_40s.wav
+  lufs_target: -20.0
+
+inference:
+  diffusion_steps: 60
+  inference_cfg_rate: 0.50
+  prompt_seconds: 12
+  f0_condition: true
+  fp16: true
+
+assets:
+  prompt_p05: D:\voice-lab\out\mosaic_svc\p0\prompt_candidates\dadadada_12s\prompt_05_048.00s.wav
+  prompt_p06: D:\voice-lab\out\mosaic_svc\p0\prompt_candidates\dadadada_12s\prompt_06_060.00s.wav
+  prompt_p07: D:\voice-lab\out\mosaic_svc\p0\prompt_candidates\dadadada_12s\prompt_07_072.00s.wav
+  prompt_adapter_p05: D:\voice-lab\out\mosaic_svc\p0\prompt_adapter_p05_singing_only\prompt_adapter_final.pt
+  dialogue_rank_csv: D:\voice-lab\out\mosaic_svc\p0\prompt_candidates\dadadada_12s\prompt_ranked_by_dialogue_profile.csv
+
+conditions:
+  - id: P00_current_best_p05
+    stage: P00
+    prompt: prompt_p05
+    description: Current best. P05 12s raw.
+
+  - id: P01_quality_alt_p06
+    stage: P01
+    prompt: prompt_p06
+    description: High-quality prompt-bank alternate. Tests prompt bank sensitivity.
+
+  - id: P02_prompt_adapter_p05_s050
+    stage: P02
+    prompt: prompt_p05
+    prompt_adapter: prompt_adapter_p05
+    prompt_adapter_strength: 0.50
+    description: P05 plus Prompt Adapter at strength 0.50.
+
+  - id: P03_dialogue_rank1_p05
+    stage: P03
+    prompt: prompt_p05
+    description: Dialogue-profile rerank rank 1. Same prompt as current best.
+
+  - id: P03_dialogue_rank2_p07
+    stage: P03
+    prompt: prompt_p07
+    description: Dialogue-profile rerank rank 2. First non-P05 rerank candidate.
