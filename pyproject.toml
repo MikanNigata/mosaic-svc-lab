@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mosaic-svc-lab"
+version = "0.2.0"
+description = "Backend-agnostic experiment and retrieval tools for zero-shot singing voice conversion"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Research repository; see individual backend licenses" }
+authors = [{ name = "MikanNigata" }]
+dependencies = []
+
+[project.scripts]
+mosaic-lab = "mosaic_lab.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["mosaic_lab*"]
+
+[tool.unittest]
+start-directory = "tests"
