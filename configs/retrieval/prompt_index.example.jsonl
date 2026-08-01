@@ -1,0 +1,3 @@
+{"prompt_id":"P05","path":"data/prompts/P05.wav","register_percentile":0.71,"f0_span_semitones":11.8,"energy_percentile":0.69,"quality_score":0.94}
+{"prompt_id":"P06","path":"data/prompts/P06.wav","register_percentile":0.83,"f0_span_semitones":13.1,"energy_percentile":0.79,"quality_score":0.90}
+{"prompt_id":"P07","path":"data/prompts/P07.wav","register_percentile":0.48,"f0_span_semitones":7.4,"energy_percentile":0.52,"quality_score":0.96}

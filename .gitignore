@@ -3,9 +3,13 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+*.egg-info/
+build/
+dist/
 
 # Local generated artifacts
 artifacts/
+experiments/
 out/
 logs/
 tmp/
@@ -16,13 +20,16 @@ models/
 *.ckpt
 *.safetensors
 
-# Large local audio/data by default.
+# Large local audio/data by default
 data/
 *.wav
 *.flac
 *.m4a
 *.webm
 
-# Keep curated small MP3 samples.
+# Keep curated small MP3 samples
 !samples/**/*.mp3
 
+# Private blind-listening mappings
+mapping.private.json
+*.private.json

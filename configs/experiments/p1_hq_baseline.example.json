@@ -1,0 +1,53 @@
+{
+  "experiment_id": "P1-HQ-001",
+  "output_root": "../../experiments",
+  "seeds": [1234],
+  "sources": {
+    "E1_mid": "../../../data/eval/E1_mid.wav",
+    "E2_high_mix": "../../../data/eval/E2_high_mix.wav",
+    "E3_falsetto": "../../../data/eval/E3_falsetto.wav",
+    "E4_fast_consonants": "../../../data/eval/E4_fast_consonants.wav"
+  },
+  "references": {
+    "P05": "../../../data/prompts/P05_048_060.wav"
+  },
+  "conditions": [
+    {
+      "id": "S0_seed_p05",
+      "backend": "seed-vc",
+      "reference": "P05",
+      "cwd": "D:/voice-lab/mosaic-svc-lab",
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "scripts/run_current_best.ps1",
+        "-Source",
+        "{source}",
+        "-Prompt",
+        "{reference}",
+        "-Output",
+        "{output_dir}"
+      ],
+      "collect_glob": "{output_dir}/**/*.wav"
+    },
+    {
+      "id": "H0_hqsvc_p05",
+      "backend": "hq-svc",
+      "reference": "P05",
+      "enabled": false,
+      "cwd": "//wsl.localhost/Ubuntu/home/USER/HQ-SVC",
+      "command": [
+        "wsl.exe",
+        "--distribution",
+        "Ubuntu",
+        "--",
+        "bash",
+        "-lc",
+        "./mosaic_infer.sh '{source}' '{reference}' '{output_file}' {seed}"
+      ]
+    }
+  ]
+}

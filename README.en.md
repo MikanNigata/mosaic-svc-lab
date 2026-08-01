@@ -2,280 +2,457 @@
 
 [日本語](README.md) | English
 
-Mosaic-SVC Lab is an experimental repository for high-quality singing voice conversion built around a forked Seed-VC runtime.
+**Mosaic-SVC Lab** is a research and experiment repository for improving **high-quality offline singing voice conversion** from a small amount of clean singing plus longer, lower-quality material, starting without target-specific training.
 
-The practical target is simple:
+> Keep a universal zero-shot SVC backend frozen, retrieve references suited to each source phrase, optionally generate several candidates, and select the output that best preserves naturalness and target identity.
 
-> Make a source guide vocal sing with the perceived identity of a target singer, while preserving pitch, rhythm, lyrics, and singing expression.
+This is not yet a finished voice-conversion application. It is a backend-agnostic experiment, retrieval, blind-listening, and future speaker-memory layer for systems such as Seed-VC, HQ-SVC, and SoulX-Singer-SVC.
 
-This repository tracks the research design, experiment logs, current best settings, lightweight listening samples, and orchestration scripts. The runnable Seed-VC implementation lives in a separate fork.
+---
 
-```text
-runtime fork: https://github.com/MikanNigata/seed-vc
-lab repo:     https://github.com/MikanNigata/mosaic-svc-lab
-local root:   D:\voice-lab
-```
-
-## Motivation
-
-Initial experiments showed that a small adapter on the CAMPPlus/global-style path did not produce a clearly audible improvement. Blind listening preferred a raw Seed-VC prompt over numerically better adapter or longer-prompt variants.
-
-This changed the priority of the project:
+## TL;DR
 
 ```text
-before: speaker adapter / memory first
-after:  canonical prompt bank first, adapter second
+source singing
+  -> source phrase analysis
+  -> reference retrieval from Acoustic Memory
+  -> frozen zero-shot SVC backend
+  -> one or more converted candidates
+  -> Identity Memory / human listening rerank
+  -> selected output
 ```
 
-The current working hypothesis is:
+Mosaic aims to preserve lyrics, pronunciation, pitch, rhythm, timing, vibrato, dynamics, and phrasing while replacing speaker timbre, resonance, harmonic structure, register-dependent color, breathiness, and related target-speaker characteristics.
 
-> In Seed-VC singing conversion, target identity is strongly controlled by the reference prompt path, especially prompt mel and prompt semantic features. Therefore prompt selection must be treated as a first-class speaker asset, not as a convenience input.
+Real-time conversion, training a large universal model from scratch, and full target-speaker fine-tuning are outside the initial scope.
 
-## Seed-VC Conditioning Model
+---
 
-The 44.1 kHz Seed-VC singing model conditions target identity through three reference-derived paths:
+## Why this project exists
+
+A common target-speaker data distribution is asymmetric:
 
 ```text
-reference audio
-  -> Whisper semantic prompt condition
-  -> prompt mel
-  -> CAMPPlus global style vector
+high-quality singing:           tens of seconds to a few minutes
+long low-quality speech/video:  tens of minutes to hours
 ```
 
-For source singing \(x\), reference prompt \(r\), and target style vector \(s\), the current abstraction is:
+Using only the clean material may not cover the speaker's full range. Using noisy long-form audio directly as an acoustic target risks learning noise, room response, codec artifacts, and microphone coloration.
 
-```math
-\hat{y} = G_{\theta}
-\left(
-  C(x),
-  F_0(x),
-  P_{\mathrm{sem}}(r),
-  P_{\mathrm{mel}}(r),
-  S_{\mathrm{camp}}(r)
-\right)
+Mosaic therefore separates the roles:
+
+```text
+short high-quality singing
+  -> Acoustic Memory
+  -> references that may be supplied to the generator
+
+long material including low-quality dialogue
+  -> Identity Memory
+  -> identity verification, prompt retrieval, and output reranking
 ```
 
-where:
+The core hypothesis is:
 
-- \(C(x)\): Seed-VC source content features.
-- \(F_0(x)\): source pitch trajectory after Seed-VC length regulation.
-- \(P_{\mathrm{sem}}(r)\): prompt semantic condition from reference audio.
-- \(P_{\mathrm{mel}}(r)\): prompt mel frames.
-- \(S_{\mathrm{camp}}(r)\): 192-dimensional CAMPPlus global style embedding.
-- \(G_{\theta}\): frozen Seed-VC acoustic generator and vocoder.
+> Long low-quality material can improve reference selection and output identity ranking without being used as an acoustic training target or generation reference.
 
-The project originally tested whether a low-rank style/prompt adapter could move identity without damaging F0:
+---
 
-```math
-H_t =
-W_{\mathrm{base}}
-\left[
-  x_t,\,
-  p_t,\,
-  c_t,\,
-  s
-\right]
-+ \lambda\,B(A(z_r))
+## Mosaic is not a new generator
+
+Mosaic initially delegates synthesis quality to existing zero-shot SVC systems.
+
+```text
+Mosaic Core
+  - experiment manifests
+  - backend runner
+  - Acoustic Memory
+  - reference retriever
+  - blind-listening preparation
+  - future Identity Memory
+  - evaluation and result tracking
+
+Backends
+  - Seed-VC
+  - HQ-SVC
+  - SoulX-Singer-SVC
+  - future universal SVC systems
 ```
 
-where \(z_r\) is a prompt summary, \(A\) and \(B\) are low-rank projections, and \(\lambda\) is an inference-time adapter strength.
+Each backend runs in its own environment and process. Mosaic does not force incompatible PyTorch, CUDA, codec, and model dependencies into one Python environment.
 
-The first results indicate that prompt selection itself is currently more audible than this adapter.
+---
 
-## Current Best Setting
+## Difference from RVC and ordinary zero-shot SVC
 
-Current preferred setting from blind listening:
+| | RVC | Ordinary zero-shot SVC | Mosaic-SVC |
+| --- | --- | --- | --- |
+| Target-specific asset | trained model + feature index | one short reference | Acoustic / Identity Memory |
+| Target training | usually required | none | none in P0-P3 |
+| Generator | target-specialized | shared | shared and replaceable |
+| Retrieval | local content-feature lookup and mixing | usually manual reference | source-conditioned reference retrieval and output reranking |
+| Long low-quality data | risky as training data | usually unused | restricted to Identity Memory |
+| More target data | retrain/update index | add references manually | progressively enrich memory and retrieval |
+
+The first Mosaic prototype does not inject frame-level nearest-neighbor features into the generator. It retrieves complete reference WAVs, lets the frozen backend generate high-quality audio, and then ranks candidates.
+
+---
+
+## Progressive enrollment
+
+| Available target data | Intended behavior |
+| --- | --- |
+| 5-15 seconds | ordinary single-reference zero-shot conversion |
+| 30 seconds to a few minutes | prompt bank, quality filtering, source-conditioned retrieval |
+| minutes to tens of minutes | denser prompt bank, Identity Memory, multi-candidate selection |
+| sufficient clean singing | lightweight adaptation only when evidence shows it is needed |
+
+With too little evidence, the system should safely fall back to ordinary zero-shot conversion instead of applying unreliable memory corrections.
+
+---
+
+## Current evidence
+
+The initial Seed-VC study tested:
+
+- 12-second and 24-second references
+- a CAMPPlus dialogue profile
+- prompt reranking from 25 minutes of dialogue
+- a small Prompt Adapter
+- several CFG and diffusion settings
+- F0, cent RMSE, and UV metrics
+- blind listening
+
+The fixed Seed baseline is:
 
 ```yaml
-condition: P05_12s_raw
-prompt_source: dadadada_tenshi_vocal.wav
-prompt_start_seconds: 48
-prompt_duration_seconds: 12
+backend: Seed-VC 44.1kHz
+prompt: P05
+prompt_range: 48-60 seconds
+prompt_duration: 12 seconds
 diffusion_steps: 60
 inference_cfg_rate: 0.50
+f0_condition: true
 adapter: none
 ```
 
-Local command:
+Blind listening preferred this raw 12-second prompt over adapter and longer-prompt variants that had better F0/UV metrics.
+
+```text
+better F0 metrics
+  != better identity
+  != better naturalness
+  != better overall preference
+```
+
+This negative result motivated the shift from Seed-specific adapter tuning to backend comparison and systematic reference design.
+
+Legacy research remains available:
+
+- [`docs/architecture/MOSAIC_SVC_R16.md`](docs/architecture/MOSAIC_SVC_R16.md)
+- [`docs/experiments/2026-07-31-prompt-selection.md`](docs/experiments/2026-07-31-prompt-selection.md)
+- [`configs/current_best.yaml`](configs/current_best.yaml)
+
+---
+
+## Current implementation status
+
+| Feature | Status |
+| --- | --- |
+| Frozen Seed P05 baseline | complete |
+| Manifest-driven backend runner | implemented |
+| Command, hash, seed, timing, and log capture | implemented |
+| Blind-listening set generation | implemented |
+| Optional two-pass ffmpeg loudness normalization | implemented |
+| Top-k retrieval from relative register, F0 span, energy, and quality | prototype implemented |
+| HQ-SVC inference adapter | not implemented |
+| Automatic prompt slicing and feature extraction | not implemented |
+| Identity Memory | not implemented |
+| Automatic output reranking | not implemented |
+| Target adaptation | intentionally deferred |
+| GUI / real-time conversion | out of scope |
+
+---
+
+## Roadmap
+
+### P0 — Seed baseline
+
+Complete. Keep the preferred Seed P05 setting fixed.
+
+### P1-BACKEND — Frozen backend comparison
+
+Compare identical source and reference inputs without Mosaic corrections or target adaptation.
+
+```text
+Seed-VC P05
+vs
+HQ-SVC P05
+```
+
+Add SoulX-Singer-SVC only when another independent backend is needed.
+
+### P2-REFERENCE — Reference retrieval
+
+```text
+R0 fixed P05
+R1 development-set global best
+R2 source-conditioned top-1
+R3 top-3 generation + human oracle
+```
+
+Initial retrieval signals:
+
+- target-relative register
+- F0 span
+- energy
+- quality
+
+### P3-IDENTITY — Core Mosaic hypothesis
+
+Keep the backend frozen and separate the contribution of Identity Memory:
+
+```text
+M1 Acoustic retrieval only
+M2 Identity added to prompt retrieval
+M3 Identity used only for output reranking
+M4 Identity used for both retrieval and reranking
+```
+
+The hypothesis passes only if unseen songs show improved target identity without reduced naturalness.
+
+### P4-ADAPT — Only if needed
+
+Consider lightweight speaker/timbre adapters or LoRA only when naturalness, pronunciation, pitch, timing, and register are already adequate and identity is the isolated remaining weakness.
+
+---
+
+## Quick start
+
+Mosaic Core requires Python 3.10+ and uses only the standard library.
+
+Additional tools:
+
+- backend-specific environments for actual conversion
+- `ffmpeg` for optional listening-copy loudness normalization
+- a separate Seed-VC environment
+- initially a WSL/Linux environment for HQ-SVC
 
 ```powershell
-D:\voice-lab\seed-vc\.venv\Scripts\python.exe -m mosaic_svc.p0.infer_p0 `
-  --source D:\voice-lab\data\guide_vocals\ittai_itsukara_head_40s.wav `
-  --prompt D:\voice-lab\out\mosaic_svc\p0\prompt_candidates\dadadada_12s\prompt_05_048.00s.wav `
-  --output D:\voice-lab\out\mosaic_svc\p0\current_best_p05_raw `
-  --diffusion-steps 60 `
-  --inference-cfg-rate 0.50 `
-  --prompt-seconds 12 `
-  --f0-condition True `
-  --fp16 True
+git clone https://github.com/MikanNigata/mosaic-svc-lab.git
+cd mosaic-svc-lab
+
+python -m pip install -e .
+python -m unittest discover -s tests -v
+mosaic-lab --help
 ```
 
-## Experiments
+---
 
-### P0: Frozen Seed-VC Baseline
+## P1 backend experiment runner
 
-Purpose:
+Copy and edit the example manifest:
+
+```powershell
+Copy-Item `
+  configs/experiments/p1_hq_baseline.example.json `
+  configs/experiments/p1_hq_baseline.local.json
+```
+
+Inspect planned jobs:
+
+```powershell
+mosaic-lab run `
+  configs/experiments/p1_hq_baseline.local.json `
+  --dry-run
+```
+
+Execute:
+
+```powershell
+mosaic-lab run `
+  configs/experiments/p1_hq_baseline.local.json `
+  --fail-fast
+```
+
+Each manifest record includes experiment and condition IDs, backend, source, reference, seed, command, SHA-256 hashes, timestamps, elapsed time, return code, logs, and canonical output path.
+
+---
+
+## Blind-listening preparation
+
+```powershell
+mosaic-lab blind `
+  --manifest experiments/P1-HQ-001/manifest.jsonl `
+  --output experiments/P1-HQ-001/listening `
+  --normalize
+```
+
+Normalization applies only to listening copies; raw backend outputs are preserved. The condition mapping is written separately and should remain hidden during listening.
+
+Recommended axes:
+
+- target identity
+- naturalness
+- lyrics and pronunciation
+- pitch and timing
+- vibrato and dynamics
+- register preservation
+- identity stability across range
+- metallic noise, roughness, doubled voice, and other artifacts
+- overall preference
+
+---
+
+## P2 prompt ranking
+
+The current retriever is a non-learned prototype:
+
+```powershell
+mosaic-lab rank `
+  --source-features configs/retrieval/source_features.example.json `
+  --prompt-index configs/retrieval/prompt_index.example.jsonl `
+  --weights configs/retrieval/p2_retrieval.example.json `
+  --top-k 3
+```
+
+Current signals and default weights:
 
 ```text
-Measure what can be improved without changing Seed-VC's content encoder, generator, or vocoder.
+0.35 target-relative register
+0.25 F0-span match
+0.20 energy match
+0.20 quality
 ```
 
-Conditions tested:
+The retriever compares relative positions within the source and target ranges instead of matching absolute F0 directly. The fixed formula is only a baseline for testing whether source-conditioned reference selection has value.
 
-| ID | Condition | Purpose |
-| --- | --- | --- |
-| A | Seed-VC zero-shot | Baseline |
-| B | Fixed canonical prompt | Prompt selection effect |
-| C | Style adapter | CAMPPlus/style-path adaptation effect |
-| D0 | Inference-only prototype correction | CAMPPlus prototype effect |
-| M1 | Prompt bank selection | Prompt mel/semantic effect |
-| M2 | Prompt Adapter | Prompt-path residual effect |
-| M4 | Dialogue speaker profile rerank | Use low-quality speech only as identity signal |
+---
 
-### Prompt Bank Experiment
+## Backend contract
 
-Prompt candidates were cut from high-quality target singing. The most relevant candidates were:
-
-| Candidate | Segment | Notes |
-| --- | ---: | --- |
-| P05 | 48s-60s | Blind listening winner |
-| P06 | 60s-72s | Previously perceived as slightly clearer |
-| P48_72 | 48s-72s | Numerically strong, not preferred in blind listening |
-
-### Dialogue Speaker Profile
-
-The 25-minute dialogue material was not used as acoustic training data.
-
-It was used to build a CAMPPlus speaker centroid:
-
-```math
-\bar{s}_{\mathrm{dialogue}}
-=
-\operatorname{Normalize}
-\left(
-  \frac{1}{|K|}
-  \sum_{i \in K}
-  S_{\mathrm{camp}}(d_i)
-\right)
-```
-
-where \(K\) contains the retained non-outlier dialogue chunks.
-
-The prompt rerank score was:
-
-```math
-\operatorname{score}(r)
-=
-\alpha
-\cos
-\left(
-  S_{\mathrm{camp}}(r),
-  \bar{s}_{\mathrm{dialogue}}
-\right)
-+
-\beta Q(r)
-```
-
-with \(\alpha=0.70\), \(\beta=0.30\), and \(Q(r)\) as an audio-quality score.
-
-Observed reranking:
-
-| Rank | Prompt | CAMPPlus Similarity | Combined Score |
-| ---: | --- | ---: | ---: |
-| 1 | prompt_05_048.00s | 0.425142 | 0.594224 |
-| 2 | prompt_07_072.00s | 0.423787 | 0.584651 |
-| 3 | prompt_08_084.00s | 0.387137 | 0.554121 |
-| 4 | prompt_03_024.00s | 0.483816 | 0.545296 |
-| 5 | prompt_06_060.00s | 0.346047 | 0.529108 |
-
-### Blind Listening Result
-
-Blind set:
+Mosaic does not import backend internals. A thin backend CLI should accept at least:
 
 ```text
-samples/blind_ittai40_p05_tests/
+source path
+reference path
+output path
+random seed
+backend-specific settings
 ```
 
-Mapping:
-
-| Blind File | Actual Condition |
-| --- | --- |
-| test_01.mp3 | P48_72 24s raw |
-| test_02.mp3 | P05 12s + Prompt Adapter strength 0.5 |
-| test_03.mp3 | P05 12s raw |
-
-User preference:
+Conceptually:
 
 ```text
-test_03.mp3 -> P05 12s raw
+mosaic-lab
+  -> subprocess / wsl.exe
+  -> backend-specific CLI
+  -> output.wav
+  -> manifest.jsonl
 ```
 
-### Metrics
+For HQ-SVC, the plan is to validate the official-style environment first and then add a thin non-interactive WSL adapter. Native Windows porting and tight coupling to internal APIs are deferred until quality is proven.
 
-Metrics were useful for debugging but did not fully predict listening preference.
+---
 
-| Condition | F0 Corr | Cent RMSE | UV Mismatch | Listening |
-| --- | ---: | ---: | ---: | --- |
-| P05 12s raw | 0.968344 | 92.98 | 0.139872 | Preferred |
-| P05 12s adapter strength 0.5 | 0.996016 | 48.94 | 0.123041 | Not clearly better |
-| P05 12s adapter strength 1.0 | 0.994381 | 84.41 | 0.224898 | Too strong |
-| P48_72 24s raw | 0.996700 | 44.93 | 0.073418 | Not preferred |
+## Experiment principles
 
-This is an important negative result:
+- Separate Development, Validation, and Test sets.
+- Do not evaluate final performance on the song used to choose the prompt.
+- Use multiple source singers to detect source-timbre leakage.
+- Cross prompts with the same random-seed set for stochastic backends.
+- Normalize listening level, but do not hide model artifacts with heavy post-processing.
+- Use objective pitch/UV metrics for failure detection, not as the final ranking.
+- Use blind listening for identity, naturalness, register preservation, and artifacts.
+
+---
+
+## Go / No-Go
+
+Continue when:
+
+- dynamic top-1 is stable against a global-best prompt on unseen songs
+- top-3 frequently contains the human-preferred prompt
+- Identity Memory improves target identity
+- naturalness does not decrease
+- small-data behavior does not underperform ordinary zero-shot conversion
+- retrieval becomes more stable as target data grows
+
+Redesign when:
+
+- the same prompt always wins
+- retrieval scores are unrelated to human preference
+- dialogue identity mostly captures recording environment
+- additional data does not improve retrieval
+- a new backend cannot beat the frozen Seed baseline
+- even top-3 human oracle selection cannot beat a fixed prompt
+
+---
+
+## Repository layout
 
 ```text
-better F0/UV metrics != better perceived identity or naturalness
+mosaic-svc-lab/
+├─ configs/
+│  ├─ current_best.yaml
+│  ├─ experiments/
+│  └─ retrieval/
+├─ docs/
+│  ├─ architecture/
+│  └─ experiments/
+├─ mosaic_lab/
+│  ├─ cli.py
+│  ├─ experiment.py
+│  ├─ blind.py
+│  └─ retrieval.py
+├─ samples/
+├─ scripts/
+├─ tests/
+└─ pyproject.toml
 ```
 
-## Current Research Direction
-
-The next useful work is not more random adapter tuning. It is a more systematic prompt-bank study.
-
-Planned next steps:
-
-1. Cut 20-50 high-quality prompt candidates.
-2. Generate the same evaluation clip for each prompt.
-3. Normalize loudness with LUFS, not peak normalization.
-4. Blind-rank prompts by perceived identity and naturalness.
-5. Analyze the winning prompts by register, energy, phonation, silence ratio, and CAMPPlus similarity.
-6. Only after a stable prompt bank exists, distill or adapt its behavior into an adapter.
-
-## Repository Layout
+Repository roles:
 
 ```text
-configs/
-  current_best.yaml
-docs/
-  architecture/
-    MOSAIC_SVC_R16.md
-  experiments/
-    2026-07-31-prompt-selection.md
-samples/
-  blind_ittai40_p05_tests/
-scripts/
-  run_current_best.ps1
-  build_dialogue_profile.ps1
-  rank_prompts_by_dialogue_profile.ps1
+mosaic-svc-lab
+  experiment definitions, memory specifications, retrieval, evaluation
+
+MikanNigata/seed-vc
+  frozen Seed baseline and legacy Mosaic extensions
+
+HQ-SVC / SoulX-Singer-SVC
+  independent backend environments
 ```
 
-## Data Policy
+---
 
-This repository intentionally does not track:
+## Data policy and responsible use
 
-- source datasets
-- long generated WAV files
-- model checkpoints
-- pretrained weights
-- virtual environments
+The repository does not track source datasets, long generated WAV files, private speaker memory, checkpoints, pretrained weights, virtual environments, or private blind mappings. Small curated comparison MP3 files may be committed as exceptions.
 
-Small MP3 comparison clips may be tracked when they are useful for experiment review.
+Use voice conversion only with appropriate consent and after checking copyright, publicity/personality rights, platform terms, and applicable law. This repository is not intended for impersonation, deception, or rights infringement.
 
-## Status
+**No repository-wide license has been selected yet.** Public visibility does not itself grant permission to redistribute, commercially use, or create derivatives. Backend code and model weights also have their own licenses.
 
-Current status:
+---
 
-```text
-Prompt-bank selection is the strongest practical lever found so far.
-Prompt Adapter exists, but is secondary until it wins blind listening.
-Dialogue data is useful as a speaker-profile signal, not as acoustic training data.
-```
+## Documentation
+
+- [Mosaic-SVC v2 Architecture](docs/architecture/MOSAIC_SVC_V2.md)
+- [P1 / P2 Runbook](docs/experiments/P1_P2_RUNBOOK.md)
+- [Legacy R1.6 Architecture](docs/architecture/MOSAIC_SVC_R16.md)
+- [Seed Prompt Selection Experiments](docs/experiments/2026-07-31-prompt-selection.md)
+
+---
+
+## Immediate next tasks
+
+1. Validate HQ-SVC in an environment close to its official setup.
+2. Add a thin non-interactive backend adapter.
+3. Blind-compare Seed P05 and HQ-SVC P05 under identical conditions.
+4. Build a 12-second prompt bank from clean target singing.
+5. Compare fixed P05, global best, top-1, and top-3 human oracle.
+6. Only then implement Identity Memory from long low-quality dialogue.
+
+The main research question remains P3:
+
+> Can quality-partitioned Acoustic and Identity Memory improve target identity through reference retrieval and output reranking while the zero-shot SVC backend remains frozen?
