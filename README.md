@@ -2,280 +2,189 @@
 
 日本語 | [English](README.en.md)
 
-Mosaic-SVC Lab は、Seed-VC を基盤にした高品質 singing voice conversion の設計・実験用リポジトリです。
+Mosaic-SVC Lab は、**高品質なオフライン歌唱変換**のための実験・検索・評価リポジトリです。
 
-実用上の目的は単純です。
+現在はSeed-VC改造を中心にせず、複数のゼロショットSVCを共通条件で比較し、入力に適したReferenceを検索するバックエンド非依存レイヤーとして再設計しています。
 
-> 入力のガイド歌唱から音程・リズム・歌詞・歌い回しを保ちつつ、出力の声を対象歌手らしくする。
+> 固定した汎用ゼロショットSVCへ、品質ごとに役割を分けた話者メモリから最適な参照を供給し、必要に応じて複数出力を評価する。
 
-このリポジトリでは、研究設計、実験ログ、現在の最良設定、小さな聴き比べサンプル、再実行用スクリプトを管理します。実際に動くSeed-VC改造コードは別forkに置きます。
+## 目標
 
-```text
-runtime fork: https://github.com/MikanNigata/seed-vc
-lab repo:     https://github.com/MikanNigata/mosaic-svc-lab
-local root:   D:\voice-lab
-```
+入力歌唱から保持するもの:
 
-## 背景
+- 歌詞・発音
+- 音程・リズム・タイミング
+- ビブラート、強弱、歌い回し
 
-初期実験では、CAMPPlus/global style 経路へ小さなAdapterを足しても、聴感上は明確な改善になりませんでした。ブラインド比較では、数値上よかったAdapter版や長めprompt版ではなく、素のSeed-VC promptが選ばれました。
+対象人物から置き換えるもの:
 
-そのため、優先順位を変更します。
+- 声質、声道・共鳴特性
+- 倍音構造
+- 地声・ミックス・裏声ごとの音色
+- 息成分、鼻腔感
 
-```text
-変更前: speaker adapter / memory を先に強化
-変更後: canonical prompt bank を先に作り、adapter は二段目
-```
+リアルタイム性と対象人物ごとの全面fine-tuningは、初期段階の対象外です。
 
-現在の作業仮説は次です。
+## Mosaicの中心仮説
 
-> Seed-VCの歌唱変換では、対象話者らしさがreference prompt経路、とくにprompt melとprompt semanticに強く依存する。したがってprompt選別は単なる入力指定ではなく、話者資産として扱うべきである。
-
-## Seed-VCの条件付け構造
-
-44.1 kHzのSeed-VC歌唱モデルでは、参照音声から主に3つの条件が作られます。
+### Quality-partitioned dual memory
 
 ```text
-reference audio
-  -> Whisper semantic prompt condition
-  -> prompt mel
-  -> CAMPPlus global style vector
+高品質な短い歌唱
+  -> Acoustic Memory
+  -> 生成器へ渡せるReference Bank
+
+長時間の低品質音声を含む素材
+  -> Identity Memory
+  -> 本人確認、Prompt選択、出力rerank
 ```
 
-入力歌唱を \(x\)、参照promptを \(r\)、style vectorを \(s\) とすると、現在の抽象化は次です。
+低品質雑談は、原則として生成用Referenceや音響再構成教師には使いません。長時間データから本人性の統計だけを利用し、ノイズ、部屋、マイク特性の模倣を避けます。
 
-```math
-\hat{y} = G_{\theta}
-\left(
-  C(x),
-  F_0(x),
-  P_{\mathrm{sem}}(r),
-  P_{\mathrm{mel}}(r),
-  S_{\mathrm{camp}}(r)
-\right)
+### Progressive enrollment
+
+```text
+5-15秒          通常のゼロショット
+30秒-数分       Prompt Bankと動的検索
+数分-数十分以上 Identity Memoryと複数候補選抜
+十分なHQデータ  必要な場合だけ軽量適応
 ```
 
-各記号は次を意味します。
+### Downstream-feedback retrieval
 
-- \(C(x)\): Seed-VCのsource content特徴。
-- \(F_0(x)\): 入力歌唱のピッチ軌跡。
-- \(P_{\mathrm{sem}}(r)\): 参照音声から得たsemantic prompt条件。
-- \(P_{\mathrm{mel}}(r)\): 参照音声のprompt mel。
-- \(S_{\mathrm{camp}}(r)\): 192次元のCAMPPlus global style embedding。
-- \(G_{\theta}\): 凍結したSeed-VCの音響生成器とvocoder。
+将来はembedding類似度だけでなく、固定SVCが実際に生成した結果の本人度・自然さ・歌唱保持・artifact・ブラインド選好からRetrieverを改善します。Generator自体はまず固定します。
 
-最初に試したPrompt Adapterは、以下のような低ランク残差として実装しました。
+## RVCとの違い
 
-```math
-H_t =
-W_{\mathrm{base}}
-\left[
-  x_t,\,
-  p_t,\,
-  c_t,\,
-  s
-\right]
-+ \lambda\,B(A(z_r))
-```
+| | RVC | Mosaic-SVC |
+| --- | --- | --- |
+| 人物ごとの資産 | 学習済みモデル＋特徴index | 軽量なSpeaker Memory |
+| 個人学習 | 原則必要 | P0-P3では行わない |
+| 検索 | content特徴を局所的に置換・混合 | 生成用Referenceの選択と出力評価 |
+| 低品質長時間音声 | 学習に混ぜると劣化要因 | Identity Memoryに限定 |
+| Generator | 対象人物ごと | 全人物で共有するゼロショットbackend |
 
-ここで \(z_r\) はprompt summary、\(A,B\) は低ランク射影、\(\lambda\) は推論時のadapter強度です。
+## 現在の固定baseline
 
-ただし現時点では、このAdapterよりもprompt選別そのものの方が聴感上重要そうです。
-
-## 現在の最良設定
-
-ブラインド試聴で選ばれた現在の設定です。
+Seed-VC実験でブラインド選好された条件を固定標準器として残します。
 
 ```yaml
-condition: P05_12s_raw
-prompt_source: dadadada_tenshi_vocal.wav
-prompt_start_seconds: 48
-prompt_duration_seconds: 12
+backend: Seed-VC 44.1kHz
+prompt: P05
+prompt_range: 48-60 seconds
+prompt_duration: 12 seconds
 diffusion_steps: 60
 inference_cfg_rate: 0.50
+f0_condition: true
 adapter: none
 ```
 
-ローカル再実行コマンド:
+Adapter版と24秒PromptはF0/UV指標で良くても、聴感ではP05 12秒rawに勝ちませんでした。F0指標は破綻検出には使いますが、本人度・自然さの最終順位には使いません。
+
+## ロードマップ
+
+### P0 — Seed baseline（完了）
+
+現在のP05条件を固定し、Seed側へ追加改造しません。
+
+### P1-BACKEND — 基盤モデル比較
+
+Mosaic補正も個人適応も入れず、同一Source・同一P05で比較します。
+
+```text
+Seed-VC P05
+vs
+HQ-SVC P05
+```
+
+必要になった場合だけSoulX-Singer-SVCを追加します。各backendは別環境・別プロセスで動かします。
+
+### P2-REFERENCE — Reference検索
+
+```text
+R0 固定P05
+R1 development set上のglobal best
+R2 入力条件によるtop-1
+R3 top-3生成＋人間Oracle
+```
+
+最初の検索軸はtarget-relative register、F0幅、energy、qualityです。frame-level特徴をGeneratorへ直接注入しません。
+
+### P3-IDENTITY — Mosaicの中心仮説
+
+固定backendのまま、低品質雑談由来のIdentity MemoryをPrompt検索と出力rerankへ分離して評価します。
+
+```text
+M1 Acoustic retrievalのみ
+M2 IdentityをPrompt検索に追加
+M3 Identityを出力rerankにのみ追加
+M4 検索とrerankの両方
+```
+
+未知曲でM2/M3/M4がM1より本人度を上げ、自然さを下げなければ中心仮説が成立します。
+
+### P4-ADAPT — 必要時のみ
+
+自然さ、発音、F0、タイミング、声区が十分で、本人性だけが不足する場合に限って、小型adapterやLoRAを検討します。
+
+## 実装されたツール
+
+Python 3.10以上、標準ライブラリのみで動きます。
 
 ```powershell
-D:\voice-lab\seed-vc\.venv\Scripts\python.exe -m mosaic_svc.p0.infer_p0 `
-  --source D:\voice-lab\data\guide_vocals\ittai_itsukara_head_40s.wav `
-  --prompt D:\voice-lab\out\mosaic_svc\p0\prompt_candidates\dadadada_12s\prompt_05_048.00s.wav `
-  --output D:\voice-lab\out\mosaic_svc\p0\current_best_p05_raw `
-  --diffusion-steps 60 `
-  --inference-cfg-rate 0.50 `
-  --prompt-seconds 12 `
-  --f0-condition True `
-  --fp16 True
+python -m pip install -e .
+python -m unittest discover -s tests -v
 ```
 
-## 実験
+### Backend比較ランナー
 
-### P0: Frozen Seed-VC Baseline
+```powershell
+mosaic-lab run configs/experiments/p1_hq_baseline.example.json --dry-run
+mosaic-lab run configs/experiments/p1_hq_baseline.example.json --fail-fast
+```
 
-目的:
+実行コマンド、入力SHA-256、Reference、seed、所要時間、ログ、出力を`manifest.jsonl`へ保存します。
+
+### ブラインド試聴セット
+
+```powershell
+mosaic-lab blind `
+  --manifest experiments/P1-HQ-001/manifest.jsonl `
+  --output experiments/P1-HQ-001/listening `
+  --normalize
+```
+
+### Promptランキング
+
+```powershell
+mosaic-lab rank `
+  --source-features configs/retrieval/source_features.example.json `
+  --prompt-index configs/retrieval/prompt_index.example.jsonl `
+  --weights configs/retrieval/p2_retrieval.example.json `
+  --top-k 3
+```
+
+詳しい手順は[`docs/experiments/P1_P2_RUNBOOK.md`](docs/experiments/P1_P2_RUNBOOK.md)、設計は[`docs/architecture/MOSAIC_SVC_V2.md`](docs/architecture/MOSAIC_SVC_V2.md)を参照してください。
+
+## リポジトリの役割
 
 ```text
-Seed-VCのContent Encoder、Generator、Vocoderを変更せず、どこまで改善できるかを見る。
+mosaic-svc-lab
+  実験定義、Memory仕様、Retriever、評価、ブラインド試聴
+
+MikanNigata/seed-vc
+  既存Seed baselineと過去のMosaic拡張コード
+
+HQ-SVC / SoulX-Singer
+  独立したbackend環境
 ```
 
-比較条件:
+大きな音声、元データ、モデル重み、checkpoint、仮想環境はコミットしません。小さな比較サンプルだけを例外として保存します。
 
-| ID | 条件 | 確認すること |
-| --- | --- | --- |
-| A | Seed-VC zero-shot | 基準性能 |
-| B | 固定canonical prompt | prompt選別の効果 |
-| C | Style Adapter | CAMPPlus/style経路の適応効果 |
-| D0 | 推論時prototype補正 | CAMPPlus prototypeの効果 |
-| M1 | Prompt bank選別 | prompt mel/semanticの効果 |
-| M2 | Prompt Adapter | prompt経路への残差補正 |
-| M4 | 雑談profileによるrerank | 低品質会話音声をidentity信号としてだけ使えるか |
+## 旧研究資料
 
-### Prompt Bank実験
+Seed-VC上のPrompt Adapter、CAMPPlus profile、Prompt選択実験は失敗を含む重要な履歴として残します。
 
-高品質な対象歌唱から12秒prompt候補を切り出しました。
-
-重要な候補:
-
-| Candidate | 区間 | メモ |
-| --- | ---: | --- |
-| P05 | 48s-60s | ブラインド試聴で勝った |
-| P06 | 60s-72s | 以前は少しハキハキして聞こえた |
-| P48_72 | 48s-72s | 数値上は強いが、試聴では勝たなかった |
-
-### 雑談Speaker Profile
-
-25分の雑談音声は音響学習には使っていません。
-
-使ったのはCAMPPlusの話者重心だけです。
-
-```math
-\bar{s}_{\mathrm{dialogue}}
-=
-\operatorname{Normalize}
-\left(
-  \frac{1}{|K|}
-  \sum_{i \in K}
-  S_{\mathrm{camp}}(d_i)
-\right)
-```
-
-ここで \(K\) は外れ値を除いて残した雑談チャンク集合です。
-
-prompt rerank scoreは次の形です。
-
-```math
-\operatorname{score}(r)
-=
-\alpha
-\cos
-\left(
-  S_{\mathrm{camp}}(r),
-  \bar{s}_{\mathrm{dialogue}}
-\right)
-+
-\beta Q(r)
-```
-
-\(\alpha=0.70\)、\(\beta=0.30\)、\(Q(r)\) は音質スコアです。
-
-観測されたrerank:
-
-| Rank | Prompt | CAMPPlus Similarity | Combined Score |
-| ---: | --- | ---: | ---: |
-| 1 | prompt_05_048.00s | 0.425142 | 0.594224 |
-| 2 | prompt_07_072.00s | 0.423787 | 0.584651 |
-| 3 | prompt_08_084.00s | 0.387137 | 0.554121 |
-| 4 | prompt_03_024.00s | 0.483816 | 0.545296 |
-| 5 | prompt_06_060.00s | 0.346047 | 0.529108 |
-
-### ブラインド試聴
-
-ブラインドセット:
-
-```text
-samples/blind_ittai40_p05_tests/
-```
-
-対応表:
-
-| Blind File | 実際の条件 |
-| --- | --- |
-| test_01.mp3 | P48_72 24s raw |
-| test_02.mp3 | P05 12s + Prompt Adapter strength 0.5 |
-| test_03.mp3 | P05 12s raw |
-
-選ばれたもの:
-
-```text
-test_03.mp3 -> P05 12s raw
-```
-
-### メトリクス
-
-メトリクスはデバッグには有用でしたが、聴感の順位とは一致しませんでした。
-
-| 条件 | F0 Corr | Cent RMSE | UV Mismatch | 試聴 |
-| --- | ---: | ---: | ---: | --- |
-| P05 12s raw | 0.968344 | 92.98 | 0.139872 | Preferred |
-| P05 12s adapter strength 0.5 | 0.996016 | 48.94 | 0.123041 | 明確には勝たず |
-| P05 12s adapter strength 1.0 | 0.994381 | 84.41 | 0.224898 | 強すぎ |
-| P48_72 24s raw | 0.996700 | 44.93 | 0.073418 | 勝たず |
-
-重要な負の結果:
-
-```text
-F0/UVメトリクスが良い = 本人らしさや自然さが良い、ではない。
-```
-
-## 現在の研究方針
-
-次にやるべきことは、Adapterのランダムな調整ではなく、prompt bankの体系化です。
-
-次の手順:
-
-1. 高品質歌唱から20〜50個のprompt候補を切る。
-2. 同じ評価クリップで一括生成する。
-3. peakではなくLUFSで音量を揃える。
-4. ブラインドで本人度と自然さを順位付けする。
-5. 勝ったpromptの声区、energy、phonation、無音率、CAMPPlus類似度を分析する。
-6. 安定したprompt bankができてから、その挙動をAdapterへ蒸留する。
-
-## リポジトリ構成
-
-```text
-configs/
-  current_best.yaml
-docs/
-  architecture/
-    MOSAIC_SVC_R16.md
-  experiments/
-    2026-07-31-prompt-selection.md
-samples/
-  blind_ittai40_p05_tests/
-scripts/
-  run_current_best.ps1
-  build_dialogue_profile.ps1
-  rank_prompts_by_dialogue_profile.ps1
-```
-
-## データ管理方針
-
-このリポジトリには以下を入れません。
-
-- 元データセット
-- 長い生成WAV
-- モデルcheckpoint
-- pretrained weights
-- virtual environment
-
-実験確認に必要な小さいMP3サンプルだけは例外的に入れます。
-
-## 現在の状態
-
-```text
-現時点で一番効いているのはprompt bank選別。
-Prompt Adapterは実装済みだが、ブラインド試聴で勝つまでは二軍。
-雑談データはspeaker profile信号としては使えるが、音響学習には使わない。
-```
+- [`docs/architecture/MOSAIC_SVC_R16.md`](docs/architecture/MOSAIC_SVC_R16.md)
+- [`docs/experiments/2026-07-31-prompt-selection.md`](docs/experiments/2026-07-31-prompt-selection.md)
+- [`configs/current_best.yaml`](configs/current_best.yaml)
