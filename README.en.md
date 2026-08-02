@@ -173,8 +173,8 @@ Legacy research remains available:
 | Style / Prompt Adapter | implemented in the Seed fork; excluded from the current baseline |
 | ContentVec + Whisper Teacher / De-Timbre | implemented and GPU-smoke-tested in the Seed fork |
 | Path-wise leakage probes / external multi-speaker GRL | implemented; real-data pretraining not run |
-| Causal Student / Acoustic Converter / AP Head / NSF | implemented and end-to-end smoke-tested |
-| File GUI / microphone conversion | implemented; production checkpoints not trained yet |
+| Causal Student / Acoustic Converter / AP Head / NSF | implemented; first real-data run trained on about 52 seconds of singing |
+| File GUI / microphone conversion | implemented; file conversion verified with the R16 v2 checkpoints |
 
 ---
 

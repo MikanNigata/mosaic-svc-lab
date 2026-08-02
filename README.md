@@ -215,8 +215,8 @@ F0指標が良い
 | Style / Prompt Adapter | Seed fork側で実装済み、現行baselineでは不採用 |
 | ContentVec + Whisper Teacher / De-Timbre | Seed fork側で実装・GPUスモーク済み |
 | 経路別Leakage Probe / 外部複数話者GRL | Seed fork側で実装済み、実データ事前学習は未実施 |
-| Causal Student / Acoustic Converter / AP Head / NSF | Seed fork側で実装・直列スモーク済み |
-| ファイル変換GUI / マイク変換 | Seed fork側で実装済み、実用checkpoint学習前 |
+| Causal Student / Acoustic Converter / AP Head / NSF | 実装済み、約52秒の歌唱で初回実学習済み |
+| ファイル変換GUI / マイク変換 | 実装済み、R16 v2 checkpointでファイル変換確認済み |
 
 ---
 
