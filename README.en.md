@@ -171,7 +171,10 @@ Legacy research remains available:
 | F0 / UV / quality evaluation and output reranking | implemented |
 | End-to-end generation, evaluation, reranking, and blind set | implemented |
 | Style / Prompt Adapter | implemented in the Seed fork; excluded from the current baseline |
-| GUI / real-time conversion | out of scope |
+| ContentVec + Whisper Teacher / De-Timbre | implemented and GPU-smoke-tested in the Seed fork |
+| Path-wise leakage probes / external multi-speaker GRL | implemented; real-data pretraining not run |
+| Causal Student / Acoustic Converter / AP Head / NSF | implemented and end-to-end smoke-tested |
+| File GUI / microphone conversion | implemented; production checkpoints not trained yet |
 
 ---
 

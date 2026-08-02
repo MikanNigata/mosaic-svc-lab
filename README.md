@@ -213,7 +213,10 @@ F0指標が良い
 | F0 / UV / 音質評価と自動rerank | 実装済み |
 | 生成・評価・rerank・ブラインド試聴の一括実行 | 実装済み |
 | Style / Prompt Adapter | Seed fork側で実装済み、現行baselineでは不採用 |
-| GUI / リアルタイム変換 | 対象外 |
+| ContentVec + Whisper Teacher / De-Timbre | Seed fork側で実装・GPUスモーク済み |
+| 経路別Leakage Probe / 外部複数話者GRL | Seed fork側で実装済み、実データ事前学習は未実施 |
+| Causal Student / Acoustic Converter / AP Head / NSF | Seed fork側で実装・直列スモーク済み |
+| ファイル変換GUI / マイク変換 | Seed fork側で実装済み、実用checkpoint学習前 |
 
 ---
 
