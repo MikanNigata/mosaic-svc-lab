@@ -65,14 +65,16 @@ R16は3本ともF0 correlation 0.975以上。IvyではP10の方がcent/UVで良�
 
 ## 現在の判定
 
-Conditional Go。
+No-Go。
 
-- P11–P16の実データ学習と未学習曲出力は成立
-- v1のnoise failureはv2で解消
-- F0保持は概ねP10同等以上
-- 本人度、金属感、子音、長母音、NSF音質は公開試聴による人間評価待ち
-- 高品質歌唱が1曲約104秒しかないため、P10置換はまだ行わない
+- P11–P16の実データ学習と未学習曲出力は技術的には完走した
+- v1の完全な無声音化はv2で解消し、F0指標は改善した
+- しかし人間評価では「聴けたものではない」音質で、実用条件を明確に不合格とした
+- F0 correlationは音程軌跡しか測らず、音素、音色、明瞭度、金属感、自然さを保証しない
+- 約52秒からスクラッチ学習したL1中心のAcoustic Converterはmelを過平滑化しやすい
+- 簡易NSFはmulti-resolution STFTだけで学習しており、実用vocoderに必要な敵対学習・feature matching・十分な多話者事前学習がない
+- R16音声は公開Releaseの通常試聴候補から削除し、P10を現行defaultとして維持する
 
-試聴: [GitHub Release](https://github.com/MikanNigata/mosaic-svc-lab/releases/tag/listening-check-2026-08-02)
+P8/P10試聴: [GitHub Release](https://github.com/MikanNigata/mosaic-svc-lab/releases/tag/listening-check-2026-08-02)
 
-R16音声は `-16 LUFS / -1 dBTP` に揃え、P8/P10と同じ約15秒の入力で公開した。
+R16音声は失敗資料としてローカルに保持するが、通常候補としては公開しない。
