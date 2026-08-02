@@ -172,7 +172,8 @@ Legacy research remains available:
 | End-to-end generation, evaluation, reranking, and blind set | implemented |
 | Style / Prompt Adapter | implemented in the Seed fork; excluded from the current baseline |
 | ContentVec + Whisper Teacher / De-Timbre | implemented and GPU-smoke-tested in the Seed fork |
-| Path-wise leakage probes / external multi-speaker GRL | implemented; real-data pretraining not run |
+| Path-wise leakage probes / external multi-speaker GRL | EER, centroid, and retention metrics implemented; real-data pretraining not run |
+| L1 Prototype / bounded Refiner | optionally wired through P14/P15/P16; quality not yet accepted |
 | Causal Student / Acoustic Converter / AP Head / NSF | first real-data run failed subjective audio quality; research-only |
 | File GUI / microphone conversion | implemented; R16 checkpoints are not the production default |
 

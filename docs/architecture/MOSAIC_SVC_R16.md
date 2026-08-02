@@ -63,10 +63,15 @@ ContentVec、Whisper、Fusion、De-Timbreの各地点へlinear/MLP speaker probe
 - Runtime: Live Fast 80 ms、Live Quality 160 ms、Render
 - GUI: Gradioファイル変換
 - Live: sounddeviceの入出力callbackとGPU workerをqueueで分離
+- L1 Prototype Memory: P14/P15/P16で共通のbounded style補正として接続済み
+- Live Quality Refiner: ゼロ初期化・補正上限付きの独立checkpointとして実装済み
+- Leakage評価: linear/MLP probeに加え、verification EER、nearest centroid、ContentVec retentionを実装済み
 
 ## 実装と学習済みモデルの区別
 
 P11-P16のコード、checkpoint契約、学習順、ランタイムは実装済みであり、合成データによるCUDA直列スモークで最終WAV生成まで確認済みである。ただし合成スモークcheckpointは音質評価に使えない。
+
+Prototype/Refinerは明示的に指定した場合のみ有効になる。最初のR16実データcheckpointが主観音質No-Goだった事実は変わらず、これらの追加実装だけでP10を置換しない。
 
 実用化には次が残る。
 

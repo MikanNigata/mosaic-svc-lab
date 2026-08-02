@@ -214,7 +214,8 @@ F0指標が良い
 | 生成・評価・rerank・ブラインド試聴の一括実行 | 実装済み |
 | Style / Prompt Adapter | Seed fork側で実装済み、現行baselineでは不採用 |
 | ContentVec + Whisper Teacher / De-Timbre | Seed fork側で実装・GPUスモーク済み |
-| 経路別Leakage Probe / 外部複数話者GRL | Seed fork側で実装済み、実データ事前学習は未実施 |
+| 経路別Leakage Probe / 外部複数話者GRL | EER・centroid・retentionまで実装済み、外部実データ事前学習は未実施 |
+| L1 Prototype / bounded Refiner | P14/P15/P16へ任意機能として実接続済み、品質未判定 |
 | Causal Student / Acoustic Converter / AP Head / NSF | 初回実学習は主観音質No-Go、研究用 |
 | ファイル変換GUI / マイク変換 | 実装済み、R16 checkpointは実用defaultにしない |
 
