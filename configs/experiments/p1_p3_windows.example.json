@@ -8,12 +8,6 @@
       "repo": "D:/voice-lab/seed-vc",
       "python": ".venv/Scripts/python.exe",
       "defaults": {"diffusion_steps": 60, "cfg_rate": 0.50, "prompt_seconds": 12, "f0_condition": true, "fp16": true}
-    },
-    "hq": {
-      "kind": "hq-svc",
-      "repo": "D:/voice-lab/hq-svc",
-      "script": "run_windows_infer.ps1",
-      "defaults": {"skip_download": true, "auto_f0": false, "shift_key": 0}
     }
   },
   "sources": {"E1": "D:/voice-lab/data/guide_vocals/ittai_itsukara_head_15s.wav"},
@@ -23,7 +17,6 @@
   },
   "conditions": [
     {"id": "S_P05", "backend": "seed", "reference": "P05"},
-    {"id": "S_P07", "backend": "seed", "reference": "P07"},
-    {"id": "HQ_P05", "backend": "hq", "reference": "P05"}
+    {"id": "S_P07", "backend": "seed", "reference": "P07"}
   ]
 }

@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any, Mapping
 
 
+DISABLED_BACKEND_KINDS = {"hq-svc", "hqsvc"}
+
+
 def _resolve(root: Path, value: str) -> Path:
     path = Path(value)
     return path if path.is_absolute() else (root / path).resolve()
@@ -20,6 +23,10 @@ def build_backend_command(
     config_dir: Path,
 ) -> tuple[tuple[str, ...], Path, str | None]:
     kind = str(definition.get("kind", backend_id)).lower()
+    if kind in DISABLED_BACKEND_KINDS:
+        raise ValueError(
+            "HQ-SVC was retired after a subjective No-Go result and is disabled in Mosaic-SVC Lab"
+        )
     repo = _resolve(config_dir, str(definition["repo"]))
     settings = dict(definition.get("defaults", {}))
     settings.update(condition.get("settings", {}))
@@ -64,30 +71,6 @@ def build_backend_command(
                 command.extend([flag, str(settings[key])])
         return tuple(command), repo, str(context["output_dir"]) + "/**/*.wav"
 
-    if kind == "hq-svc":
-        script = _resolve(repo, str(definition.get("script", "run_windows_infer.ps1")))
-        command = [
-            "powershell.exe",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(script),
-            "-Source",
-            str(context["source"]),
-            "-Target",
-            str(context["reference"]),
-            "-Output",
-            str(context["output_file"]),
-        ]
-        if settings.get("auto_f0", False):
-            command.append("-AutoF0")
-        if settings.get("skip_download", True):
-            command.append("-SkipDownload")
-        if "shift_key" in settings:
-            command.extend(["-ShiftKey", str(settings["shift_key"])])
-        return tuple(command), repo, None
-
     raise ValueError(f"unsupported backend kind {kind!r} for {backend_id!r}")
 
 
@@ -97,6 +80,16 @@ def doctor(backends: Mapping[str, Any]) -> list[dict[str, Any]]:
         definition = dict(raw)
         repo = Path(str(definition.get("repo", ""))).resolve()
         kind = str(definition.get("kind", backend_id)).lower()
+        if kind in DISABLED_BACKEND_KINDS:
+            results.append(
+                {
+                    "backend": backend_id,
+                    "kind": kind,
+                    "ok": False,
+                    "checks": [("disabled", False, "retired after subjective No-Go")],
+                }
+            )
+            continue
         checks: list[tuple[str, bool, str]] = [("repo", repo.is_dir(), str(repo))]
         if kind == "seed-vc":
             python = _resolve(repo, str(definition.get("python", ".venv/Scripts/python.exe")))
@@ -112,10 +105,6 @@ def doctor(backends: Mapping[str, Any]) -> list[dict[str, Any]]:
                     check=False,
                 )
                 checks.append(("cuda", process.returncode == 0 and "True" in process.stdout, process.stdout.strip() or process.stderr.strip()))
-        elif kind == "hq-svc":
-            script = _resolve(repo, str(definition.get("script", "run_windows_infer.ps1")))
-            python = _resolve(repo, str(definition.get("python", ".venv/Scripts/python.exe")))
-            checks.extend([("script", script.is_file(), str(script)), ("python", python.is_file(), str(python))])
         results.append({"backend": backend_id, "kind": kind, "ok": all(item[1] for item in checks), "checks": checks})
     results.append({"backend": "system", "kind": "tools", "ok": shutil.which("ffmpeg") is not None, "checks": [("ffmpeg", shutil.which("ffmpeg") is not None, shutil.which("ffmpeg") or "not found")]})
     return results

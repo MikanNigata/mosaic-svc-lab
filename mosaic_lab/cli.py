@@ -171,10 +171,10 @@ def _command_pipeline(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="mosaic-lab", description="Mosaic-SVC backend comparison and retrieval utilities")
+    parser = argparse.ArgumentParser(prog="mosaic-lab", description="Mosaic-SVC Seed experiment and retrieval utilities")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run_parser = subparsers.add_parser("run", help="run a backend comparison experiment from JSON")
+    run_parser = subparsers.add_parser("run", help="run a Seed-VC experiment from JSON")
     run_parser.add_argument("config", type=Path)
     run_parser.add_argument("--manifest", type=Path)
     run_parser.add_argument("--dry-run", action="store_true")

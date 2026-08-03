@@ -6,7 +6,7 @@
 
 > 汎用ゼロショットSVCは固定したまま、入力フレーズに合うReferenceを選び、必要なら複数出力を比較し、対象人物らしさと自然さを高める。
 
-現在は完成した音声変換アプリではありません。Seed-VC、HQ-SVC、SoulX-Singer-SVCなどを交換可能なbackendとして扱い、比較実験、Reference検索、ブラインド試聴、将来のSpeaker Memoryを管理する基盤を作っています。
+現在は完成した音声変換アプリではありません。**Seed-VCだけを現行backend**として扱い、Reference検索、ブラインド試聴、Speaker Memoryを管理する基盤です。HQ-SVCとR16 Streaming/NSF系は主観音質No-Goのため廃止しました。
 
 ---
 
@@ -101,9 +101,7 @@ Mosaic Core
 
 Backends
   ├─ Seed-VC
-  ├─ HQ-SVC
-  ├─ SoulX-Singer-SVC
-  └─ 将来の汎用SVC
+  └─ 他backendは現在採用しない
 ```
 
 生成品質そのものは、まず既存の高性能ゼロショットSVCに任せます。Mosaicは「どのモデルへ、どのReferenceを、どの条件で渡し、どの出力を採用するか」を担当します。
@@ -186,11 +184,11 @@ F0指標が良い
   != 総合的に好まれる
 ```
 
-この負の結果から、Seed固有のAdapter調整を続けるより、基盤モデル比較とReference設計を先に行う方針へ変更しました。
+この負の結果から、新規Generatorや別backendを増やさず、Seed-VCのReference設計と入力ボーカル品質を優先する方針へ変更しました。
 
 旧実験は失敗を含む研究履歴として保存しています。
 
-- [`docs/architecture/MOSAIC_SVC_R16.md`](docs/architecture/MOSAIC_SVC_R16.md)
+- [`docs/architecture/MOSAIC_SVC_R16.md`](docs/architecture/MOSAIC_SVC_R16.md)（廃止済みNo-Go記録）
 - [`docs/experiments/2026-07-31-prompt-selection.md`](docs/experiments/2026-07-31-prompt-selection.md)
 - [`configs/current_best.yaml`](configs/current_best.yaml)
 
@@ -206,18 +204,15 @@ F0指標が良い
 | ブラインドセット生成 | 実装済み |
 | ffmpeg 2-pass LUFS正規化 | 実装済み、任意 |
 | 相対声区・F0幅・energy・qualityによるTop-k検索 | Prototype実装済み |
-| Seed-VC / HQ-SVC定型backend | Windows実推論まで実装済み |
+| Seed-VC定型backend | Windows実推論まで実装済み |
 | backend環境診断 | CUDA / Python / ffmpeg確認を実装済み |
 | 自動Prompt切り出し・特徴抽出 | 実装済み |
 | CAMPPlus Identity Memory | 雑談centroid構築・出力採点を実装済み |
 | F0 / UV / 音質評価と自動rerank | 実装済み |
 | 生成・評価・rerank・ブラインド試聴の一括実行 | 実装済み |
 | Style / Prompt Adapter | Seed fork側で実装済み、現行baselineでは不採用 |
-| ContentVec + Whisper Teacher / De-Timbre | Seed fork側で実装・GPUスモーク済み |
-| 経路別Leakage Probe / 外部複数話者GRL | EER・centroid・retentionまで実装済み、外部実データ事前学習は未実施 |
-| L1 Prototype / bounded Refiner | P14/P15/P16へ任意機能として実接続済み、品質未判定 |
-| Causal Student / Acoustic Converter / AP Head / NSF | 初回実学習は主観音質No-Go、研究用 |
-| ファイル変換GUI / マイク変換 | 実装済み、R16 checkpointは実用defaultにしない |
+| HQ-SVC backend | **廃止・runnerで実行拒否** |
+| R16 P11-P16 / Streaming / NSF | **廃止・全CLIで実行拒否** |
 
 ---
 
@@ -272,17 +267,9 @@ mosaic-lab pipeline configs\experiments\p1_p3_windows.example.json `
 
 Seed-VCのP05 12秒rawを固定標準器として残します。Seed側へ追加のAdapterや補正を足しません。
 
-### P1-BACKEND — 基盤モデル比較
+### P1-SEED — Seed条件の固定
 
-Mosaic補正も個人適応も入れず、同一Source・同一Referenceで比較します。
-
-```text
-Seed-VC P05
-vs
-HQ-SVC P05
-```
-
-評価Sourceは中音域、高音ミックス、裏声、高速子音などへ分けます。HQ-SVCが有望な場合はSoulX-Singer-SVCを追加します。
+Seed-VC以外のbackendは追加しません。同一SourceでP05/P07/P10を比較し、P10を現行defaultとして固定します。
 
 ### P2-REFERENCE — Reference検索
 
@@ -341,10 +328,9 @@ Mosaic Core自体はPython 3.10以上と標準ライブラリだけで動きま�
 
 追加ツール:
 
-- 実際の音声生成: 各backend固有環境
+- 実際の音声生成: Seed-VC環境
 - ブラインド音源のLUFS正規化: `ffmpeg`
 - Seed-VC: 別リポジトリ・別仮想環境
-- HQ-SVC: 当面はWSL/Linux側の別環境を想定
 
 ### インストールとテスト
 
@@ -364,21 +350,21 @@ mosaic-lab --help
 
 ---
 
-## P1: Backend比較を準備する
+## P1: Seed実験を準備する
 
-設定例をコピーし、ローカルパスとbackend command templateを書き換えます。
+設定例をコピーし、ローカルパスとSeed-VC command templateを書き換えます。
 
 ```powershell
 Copy-Item `
-  configs/experiments/p1_hq_baseline.example.json `
-  configs/experiments/p1_hq_baseline.local.json
+  configs/experiments/p1_p3_windows.example.json `
+  configs/experiments/p1_p3.local.json
 ```
 
 まずdry-runで、実行予定のジョブとコマンドを確認します。
 
 ```powershell
 mosaic-lab run `
-  configs/experiments/p1_hq_baseline.local.json `
+  configs/experiments/p1_p3.local.json `
   --dry-run
 ```
 
@@ -386,7 +372,7 @@ mosaic-lab run `
 
 ```powershell
 mosaic-lab run `
-  configs/experiments/p1_hq_baseline.local.json `
+  configs/experiments/p1_p3.local.json `
   --fail-fast
 ```
 
@@ -487,13 +473,13 @@ backend固有設定
 
 ```text
 mosaic-lab
-  -> subprocess / wsl.exe
-  -> backend専用CLI
+  -> subprocess
+  -> Seed-VC CLI
   -> output.wav
   -> manifest.jsonl
 ```
 
-HQ-SVCについては、公式環境の動作確認後に、WSL内で非対話推論できる薄いアダプターを追加する予定です。品質確認前にWindowsネイティブ移植や内部APIへの密結合は行いません。
+HQ-SVC backendはNo-Go判定によりrunnerから削除済みです。R16 Streaming/NSF系も再開しません。
 
 ---
 
@@ -581,8 +567,8 @@ mosaic-svc-lab
 MikanNigata/seed-vc
   Seed baselineと過去のMosaic拡張コード
 
-HQ-SVC / SoulX-Singer-SVC
-  独立したbackend環境
+廃止済みHQ/R16
+  失敗記録のみ保持し、実行導線とロードマップから除外
 ```
 
 ---
@@ -609,8 +595,8 @@ HQ-SVC / SoulX-Singer-SVC
 ## ドキュメント
 
 - [Mosaic-SVC v2 Architecture](docs/architecture/MOSAIC_SVC_V2.md)
-- [P1 / P2 Runbook](docs/experiments/P1_P2_RUNBOOK.md)
-- [旧R1.6 Architecture](docs/architecture/MOSAIC_SVC_R16.md)
+- [P1 / P2 Seed Runbook](docs/experiments/P1_P2_RUNBOOK.md)
+- [廃止済みR1.6 No-Go記録](docs/architecture/MOSAIC_SVC_R16.md)
 - [Seed Prompt Selection Experiments](docs/experiments/2026-07-31-prompt-selection.md)
 - [P4-P8 Frozen Seed-VC Adaptation](docs/experiments/2026-08-02-p4-p8-adaptation.md)
 
@@ -618,12 +604,12 @@ HQ-SVC / SoulX-Singer-SVC
 
 ## 現在の次タスク
 
-1. P8採用版を未学習のフル曲で評価し、長時間・高音・語尾の破綻を確認する
+1. P10採用版を未学習のフル曲で評価し、長時間・高音・語尾の破綻を確認する
 2. F0 correlation、cent RMSE、UV errorを生成pipelineへ正式統合する
-3. P8と固定Seed baselineをLUFS統一したブラインド試聴で比較する
+3. P10と固定Seed baselineをLUFS統一したブラインド試聴で比較する
 4. 高品質歌唱Identity profileへ異話者negativeを追加し、本人度閾値を校正する
-5. P8が主観評価でも勝った場合だけ、話者条件付きlossとStreaming Studentへ進む
+5. 入力ボーカル分離とReference Bankを改善し、別GeneratorやStreaming系は追加しない
 
-現在の実用候補はP8です。
+現在の実用候補はP10です。HQ-SVCとR16は再評価候補に含めません。
 
 > Frozen Seed-VCへK/V-only LoRAとglobal Style-Slice Adapterを独立に学習し、両者を組み合わせて本人度と音質を同時に改善できるか。

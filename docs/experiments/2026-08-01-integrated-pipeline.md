@@ -1,5 +1,7 @@
 # 2026-08-01 Integrated P1-P3 Pipeline
 
+> **Historical experiment record.** The HQ-SVC condition was retired on 2026-08-04 and cannot be executed by the current runner. Only the Seed-VC findings remain relevant to the active plan.
+
 ## Purpose
 
 Verify the complete frozen-backend path: Seed-VC and HQ-SVC generation, objective retention checks, dialogue-derived Identity Memory scoring, automatic reranking, and loudness-normalized blind-set generation.

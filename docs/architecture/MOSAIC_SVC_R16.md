@@ -1,4 +1,6 @@
-# Mosaic-SVC R1.6 実装スナップショット
+# Mosaic-SVC R1.6 廃止済みNo-Go記録
+
+> **廃止済み。** 2026-08-04にR16 P11-P16、Streaming、AP、NSF、Refinerを現行計画から完全除外した。全CLIは実行を拒否する。この文書は失敗の再現記録であり、ロードマップではない。
 
 ## 目的
 
@@ -73,18 +75,12 @@ P11-P16のコード、checkpoint契約、学習順、ランタイムは実装済
 
 Prototype/Refinerは明示的に指定した場合のみ有効になる。最初のR16実データcheckpointが主観音質No-Goだった事実は変わらず、これらの追加実装だけでP10を置換しない。
 
-実用化には次が残る。
+追加実装・再学習・再評価は行わない。現行開発はSeed-VC P0-P10、Reference選択、入力分離品質、ブラインド評価に限定する。
 
-1. 高品質歌唱を楽曲・セッション単位でtrain/validation/testへ確定する。
-2. P11を実データで学習し、P12でLeakage/Retentionを判定する。
-3. P13、P14、P15 AP、P15 NSFを順番に学習する。
-4. 未学習曲でSeed RenderとStreaming経路を比較する。
-5. RTF、実測遅延、チャンク境界、本人度、F0、発音、ノイズのGo/No-Goを行う。
+## 廃止範囲
 
-## 条件付き機能
-
-Level 2 Mid-block K/V補正はP6に実装済みだが、Level 1/LoRAで局所的な本人度不足が残る場合だけ使用する。Mel/spectral residualはR1.6では実装しない。
+P11-P16、Streaming Student、Acoustic Converter、AP Head、NSF、R16 Prototype/Refinerは全て廃止する。P0-P10のSeed-VC適応実験は別系統として維持する。
 
 ## Source Of Truth
 
-実装コードは [`MikanNigata/seed-vc`](https://github.com/MikanNigata/seed-vc) の `mosaic_svc/p11` から `mosaic_svc/p16` に置く。本リポジトリは設計、実験manifest、評価結果、採否判断を管理する。
+履歴コードは [`MikanNigata/seed-vc`](https://github.com/MikanNigata/seed-vc) の `mosaic_svc/p11` から `mosaic_svc/p16` に残すが、共通retirement guardにより実行不可とする。

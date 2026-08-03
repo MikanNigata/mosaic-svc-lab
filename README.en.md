@@ -6,7 +6,7 @@
 
 > Keep a universal zero-shot SVC backend frozen, retrieve references suited to each source phrase, optionally generate several candidates, and select the output that best preserves naturalness and target identity.
 
-This is not yet a finished voice-conversion application. It is a backend-agnostic experiment, retrieval, blind-listening, and future speaker-memory layer for systems such as Seed-VC, HQ-SVC, and SoulX-Singer-SVC.
+This is not yet a finished voice-conversion application. **Seed-VC is the only active backend.** HQ-SVC and the R1.6 streaming/NSF path were retired after subjective No-Go results.
 
 ---
 
@@ -73,9 +73,7 @@ Mosaic Core
 
 Backends
   - Seed-VC
-  - HQ-SVC
-  - SoulX-Singer-SVC
-  - future universal SVC systems
+  - no other active backend
 ```
 
 Each backend runs in its own environment and process. Mosaic does not force incompatible PyTorch, CUDA, codec, and model dependencies into one Python environment.
@@ -144,11 +142,11 @@ better F0 metrics
   != better overall preference
 ```
 
-This negative result motivated the shift from Seed-specific adapter tuning to backend comparison and systematic reference design.
+This negative result motivated the shift from adapter tuning to systematic Seed reference design and input-quality control.
 
 Legacy research remains available:
 
-- [`docs/architecture/MOSAIC_SVC_R16.md`](docs/architecture/MOSAIC_SVC_R16.md)
+- [`docs/architecture/MOSAIC_SVC_R16.md`](docs/architecture/MOSAIC_SVC_R16.md) (retired No-Go record)
 - [`docs/experiments/2026-07-31-prompt-selection.md`](docs/experiments/2026-07-31-prompt-selection.md)
 - [`configs/current_best.yaml`](configs/current_best.yaml)
 
@@ -164,18 +162,15 @@ Legacy research remains available:
 | Blind-listening set generation | implemented |
 | Optional two-pass ffmpeg loudness normalization | implemented |
 | Top-k retrieval from relative register, F0 span, energy, and quality | prototype implemented |
-| Seed-VC / HQ-SVC backend presets | implemented and verified on Windows |
+| Seed-VC backend preset | implemented and verified on Windows |
 | Backend doctor | CUDA, Python, and ffmpeg checks implemented |
 | Automatic prompt slicing and feature extraction | implemented |
 | CAMPPlus Identity Memory | dialogue centroid and output scoring implemented |
 | F0 / UV / quality evaluation and output reranking | implemented |
 | End-to-end generation, evaluation, reranking, and blind set | implemented |
 | Style / Prompt Adapter | implemented in the Seed fork; excluded from the current baseline |
-| ContentVec + Whisper Teacher / De-Timbre | implemented and GPU-smoke-tested in the Seed fork |
-| Path-wise leakage probes / external multi-speaker GRL | EER, centroid, and retention metrics implemented; real-data pretraining not run |
-| L1 Prototype / bounded Refiner | optionally wired through P14/P15/P16; quality not yet accepted |
-| Causal Student / Acoustic Converter / AP Head / NSF | first real-data run failed subjective audio quality; research-only |
-| File GUI / microphone conversion | implemented; R16 checkpoints are not the production default |
+| HQ-SVC backend | **retired and rejected by the runner** |
+| R1.6 P11-P16 / Streaming / NSF | **retired and rejected by every CLI** |
 
 ---
 
@@ -203,17 +198,9 @@ mosaic-lab pipeline configs\experiments\p1_p3_windows.example.json `
 
 Complete. Keep the preferred Seed P05 setting fixed.
 
-### P1-BACKEND — Frozen backend comparison
+### P1-SEED — Freeze the production backend
 
-Compare identical source and reference inputs without Mosaic corrections or target adaptation.
-
-```text
-Seed-VC P05
-vs
-HQ-SVC P05
-```
-
-Add SoulX-Singer-SVC only when another independent backend is needed.
+Seed-VC is the only active backend. Compare P05, P07, and P10 on identical held-out sources.
 
 ### P2-REFERENCE — Reference retrieval
 
@@ -256,10 +243,9 @@ Mosaic Core requires Python 3.10+ and uses only the standard library.
 
 Additional tools:
 
-- backend-specific environments for actual conversion
+- the Seed-VC environment for actual conversion
 - `ffmpeg` for optional listening-copy loudness normalization
 - a separate Seed-VC environment
-- initially a WSL/Linux environment for HQ-SVC
 
 ```powershell
 git clone https://github.com/MikanNigata/mosaic-svc-lab.git
@@ -272,21 +258,21 @@ mosaic-lab --help
 
 ---
 
-## P1 backend experiment runner
+## P1 Seed experiment runner
 
 Copy and edit the example manifest:
 
 ```powershell
 Copy-Item `
-  configs/experiments/p1_hq_baseline.example.json `
-  configs/experiments/p1_hq_baseline.local.json
+  configs/experiments/p1_p3_windows.example.json `
+  configs/experiments/p1_p3.local.json
 ```
 
 Inspect planned jobs:
 
 ```powershell
 mosaic-lab run `
-  configs/experiments/p1_hq_baseline.local.json `
+  configs/experiments/p1_p3.local.json `
   --dry-run
 ```
 
@@ -294,7 +280,7 @@ Execute:
 
 ```powershell
 mosaic-lab run `
-  configs/experiments/p1_hq_baseline.local.json `
+  configs/experiments/p1_p3.local.json `
   --fail-fast
 ```
 
@@ -368,13 +354,13 @@ Conceptually:
 
 ```text
 mosaic-lab
-  -> subprocess / wsl.exe
-  -> backend-specific CLI
+  -> subprocess
+  -> Seed-VC CLI
   -> output.wav
   -> manifest.jsonl
 ```
 
-For HQ-SVC, the plan is to validate the official-style environment first and then add a thin non-interactive WSL adapter. Native Windows porting and tight coupling to internal APIs are deferred until quality is proven.
+The HQ-SVC backend was removed after its No-Go result. The R1.6 streaming/NSF path will not be resumed.
 
 ---
 
@@ -443,8 +429,8 @@ mosaic-svc-lab
 MikanNigata/seed-vc
   frozen Seed baseline and legacy Mosaic extensions
 
-HQ-SVC / SoulX-Singer-SVC
-  independent backend environments
+Retired HQ/R1.6 work
+  failure records only; excluded from execution and planning
 ```
 
 ---
@@ -462,8 +448,8 @@ Use voice conversion only with appropriate consent and after checking copyright,
 ## Documentation
 
 - [Mosaic-SVC v2 Architecture](docs/architecture/MOSAIC_SVC_V2.md)
-- [P1 / P2 Runbook](docs/experiments/P1_P2_RUNBOOK.md)
-- [Legacy R1.6 Architecture](docs/architecture/MOSAIC_SVC_R16.md)
+- [P1 / P2 Seed Runbook](docs/experiments/P1_P2_RUNBOOK.md)
+- [Retired R1.6 No-Go record](docs/architecture/MOSAIC_SVC_R16.md)
 - [Seed Prompt Selection Experiments](docs/experiments/2026-07-31-prompt-selection.md)
 - [P4-P8 Frozen Seed-VC Adaptation](docs/experiments/2026-08-02-p4-p8-adaptation.md)
 
@@ -471,12 +457,12 @@ Use voice conversion only with appropriate consent and after checking copyright,
 
 ## Immediate next tasks
 
-1. Evaluate the selected P8 condition on held-out full songs for long-form, high-register, and ending artifacts.
+1. Evaluate the selected P10 condition on held-out full songs for long-form, high-register, and ending artifacts.
 2. Integrate F0 correlation, cent RMSE, and UV error into the generation pipeline.
-3. Run LUFS-matched blind listening between P8 and the fixed Seed baseline.
+3. Run LUFS-matched blind listening between P10 and the fixed Seed baseline.
 4. Calibrate the high-quality singing identity profile with other-speaker negatives.
-5. Proceed to identity-aware loss and the Streaming Student only if P8 also wins subjective evaluation.
+5. Improve source-vocal separation and the Reference Bank; do not add another generator or streaming path.
 
-The current practical candidate is P8:
+The current practical candidate is P10. HQ-SVC and R1.6 are not reconsideration candidates.
 
 > Can independently trained K/V-only LoRA and global Style-Slice adapters improve identity and quality together while the Seed-VC base remains frozen?

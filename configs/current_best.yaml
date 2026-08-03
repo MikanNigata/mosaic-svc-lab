@@ -1,22 +1,28 @@
-version: 2026-07-31
+version: 2026-08-04
 
 dependency:
   seed_vc_repo: D:\voice-lab\seed-vc
   seed_vc_fork: https://github.com/MikanNigata/seed-vc
-  seed_vc_commit_with_mosaic_tools: 2565e98
+  seed_vc_commit_with_mosaic_tools: 3dbbfa1
 
 current_best:
-  name: P05_12s_raw
-  source: D:\voice-lab\data\guide_vocals\ittai_itsukara_head_40s.wav
-  prompt: D:\voice-lab\out\mosaic_svc\p0\prompt_candidates\dadadada_12s\prompt_05_048.00s.wav
-  prompt_start_seconds: 48
+  name: P10_IDENTITY_STEP100
+  source: D:\voice-lab\data\mosaic_eval\ittai_mid_45_60.wav
+  prompt: D:\voice-lab\out\mosaic_svc\p0\prompt_candidates\dadadada_12s\prompt_07_072.00s.wav
+  prompt_start_seconds: 72
   prompt_duration_seconds: 12
   diffusion_steps: 60
   inference_cfg_rate: 0.50
   prompt_seconds: 12
   f0_condition: true
   fp16: true
-  adapter: none
+  style_adapter: D:\voice-lab\out\mosaic_svc\p10\identity_aware_v1\identity_style_adapter_step_000100.pt
+  kv_lora: D:\voice-lab\out\mosaic_svc\p6\kv_lora_layers4_8_12_v1\kv_lora_step_000600.pt
+
+retired:
+  - HQ-SVC
+  - Mosaic-SVC R1.6 P11-P16
+  - Streaming Student / AP / NSF / Refiner
 
 listening_decision:
   blind_set: samples/blind_ittai40_p05_tests
@@ -25,8 +31,7 @@ listening_decision:
   note: User reported test03 may be best; mapping showed test03 was P05 12s raw.
 
 next_experiments:
+  - Evaluate P10 on held-out full songs.
   - Build 20-50 prompt candidates from high-quality singing and blind-rank them.
-  - Keep Prompt Adapter as secondary until it creates obvious listening improvement.
   - Test prompt routing by register instead of one universal prompt.
-  - Improve guide-vocal separation before deeper model changes.
-
+  - Improve guide-vocal separation before any deeper Seed-only adaptation.
