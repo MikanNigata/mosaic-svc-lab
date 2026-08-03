@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from mosaic_lab.backends import build_backend_command, doctor
 from mosaic_lab.experiment import plan_jobs
 
 
@@ -78,6 +79,20 @@ class ExperimentTests(unittest.TestCase):
             self.assertIn("0.5", job.command)
             self.assertEqual(job.cwd, root / "seed-vc")
             self.assertIsNotNone(job.collect_glob)
+
+    def test_hq_backend_is_retired(self) -> None:
+        definition = {"kind": "hq-svc", "repo": "hq-svc"}
+        with self.assertRaisesRegex(ValueError, "retired"):
+            build_backend_command(
+                "hq",
+                definition,
+                {},
+                {"source": "source.wav", "reference": "target.wav", "output_file": "out.wav", "seed": 1},
+                config_dir=Path.cwd(),
+            )
+        result = doctor({"hq": definition})[0]
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["checks"][0][0], "disabled")
 
 
 if __name__ == "__main__":

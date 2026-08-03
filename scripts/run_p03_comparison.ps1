@@ -177,7 +177,7 @@ $Rows | Export-Csv -LiteralPath $OutputsCsv -Encoding UTF8 -NoTypeInformation
 $EvalCsv = Join-Path $OutputRoot "p03_eval.csv"
 $EvalArgs = @(
   $Python,
-  "-m", "mosaic_svc.r16.eval_audio",
+  "-m", "mosaic_svc.p0.eval_audio",
   "--reference", $Source,
   "--candidates"
 ) + ($Rows | ForEach-Object { $_.lufs_wav }) + @(

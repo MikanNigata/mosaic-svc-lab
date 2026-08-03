@@ -90,8 +90,6 @@ Backends run in separate processes and environments. Mosaic exchanges only job m
 Mosaic Core
   -> command manifest
   -> Seed-VC environment
-  -> HQ-SVC environment
-  -> SoulX-Singer environment
 ```
 
 The memory schema should remain backend-independent. Prompt utility scores and command adapters are backend-specific.
@@ -107,9 +105,9 @@ The memory schema should remain backend-independent. Prompt utility scores and c
 - F0 condition enabled
 - no adapter
 
-### P1-BACKEND: frozen zero-shot comparison
+### P1-SEED: freeze the production backend
 
-Compare Seed-VC and HQ-SVC with the same source segments and the same P05 reference. Add SoulX-Singer-SVC only when another model family is needed.
+Seed-VC is the only active backend. HQ-SVC was retired after subjective evaluation, and no replacement generator is planned in this roadmap.
 
 ### P2-REFERENCE: Acoustic Memory retrieval
 
