@@ -11,6 +11,9 @@ from .blind import load_successful_results, prepare_blind_set
 from .experiment import load_experiment, plan_jobs, run_jobs
 from .identity import build_identity_profile, score_manifest, write_candidate_manifest
 from .retrieval import dump_ranking, load_json, load_jsonl, rank_prompts
+from .temporal_memory import EnrollmentConfig, build_temporal_memory, load_memory_metadata
+from .temporal_retrieval import RetrievalConfig, query_temporal_memory
+from .temporal_visualize import visualize_temporal_query
 
 
 def _default_manifest(config: dict, config_path: Path) -> Path:
@@ -103,6 +106,68 @@ def _command_enroll(args: argparse.Namespace) -> int:
 def _command_identity_build(args: argparse.Namespace) -> int:
     build_identity_profile(args.input, args.output, args.seed_repo, args.python)
     print(json.dumps({"identity_profile": str(args.output)}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _command_temporal_enroll(args: argparse.Namespace) -> int:
+    memory_path = build_temporal_memory(
+        args.source,
+        args.output,
+        config=EnrollmentConfig(
+            patch_seconds=args.patch_seconds,
+            hop_seconds=args.hop_seconds,
+            analysis_sr=args.analysis_sr,
+            min_active_ratio=args.min_active_ratio,
+            min_f0_confidence=args.min_f0_confidence,
+            max_clipping_ratio=args.max_clipping_ratio,
+        ),
+        overwrite=args.overwrite,
+    )
+    metadata = load_memory_metadata(memory_path)
+    print(
+        json.dumps(
+            {
+                "memory": str(memory_path),
+                "patches": metadata["patch_count"],
+                "accepted": metadata["accepted_patch_count"],
+                "rejected": metadata["rejected_patch_count"],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def _command_temporal_query(args: argparse.Namespace) -> int:
+    query_path = query_temporal_memory(
+        args.source,
+        args.memory,
+        args.output,
+        config=RetrievalConfig(
+            top_k=args.top_k,
+            temperature=args.temperature,
+            continuity_weight=args.continuity_weight,
+            jump_penalty=args.jump_penalty,
+            min_confidence=args.min_confidence,
+        ),
+        update_seconds=args.update_seconds,
+        disable_smoothing=args.disable_smoothing,
+    )
+    summary_path = query_path.with_suffix(".summary.json")
+    print(
+        json.dumps(
+            {"query": str(query_path), "summary": str(summary_path)},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
+def _command_temporal_visualize(args: argparse.Namespace) -> int:
+    outputs = visualize_temporal_query(args.query, args.memory, args.output)
+    print(json.dumps(outputs, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -217,6 +282,46 @@ def build_parser() -> argparse.ArgumentParser:
     identity_parser.add_argument("--seed-repo", required=True, type=Path)
     identity_parser.add_argument("--python", type=Path)
     identity_parser.set_defaults(func=_command_identity_build)
+
+    temporal_enroll_parser = subparsers.add_parser(
+        "temporal-enroll",
+        help="build a Temporal Timbre Memory from high-quality target singing",
+    )
+    temporal_enroll_parser.add_argument("--source", required=True, type=Path)
+    temporal_enroll_parser.add_argument("--output", required=True, type=Path)
+    temporal_enroll_parser.add_argument("--patch-seconds", type=float, default=0.40)
+    temporal_enroll_parser.add_argument("--hop-seconds", type=float, default=0.10)
+    temporal_enroll_parser.add_argument("--analysis-sr", type=int, default=22050)
+    temporal_enroll_parser.add_argument("--min-active-ratio", type=float, default=0.50)
+    temporal_enroll_parser.add_argument("--min-f0-confidence", type=float, default=0.50)
+    temporal_enroll_parser.add_argument("--max-clipping-ratio", type=float, default=0.001)
+    temporal_enroll_parser.add_argument("--overwrite", action="store_true")
+    temporal_enroll_parser.set_defaults(func=_command_temporal_enroll)
+
+    temporal_query_parser = subparsers.add_parser(
+        "temporal-query",
+        help="retrieve target timbre patches for each source singing frame",
+    )
+    temporal_query_parser.add_argument("--source", required=True, type=Path)
+    temporal_query_parser.add_argument("--memory", required=True, type=Path)
+    temporal_query_parser.add_argument("--output", required=True, type=Path)
+    temporal_query_parser.add_argument("--top-k", type=int, default=5)
+    temporal_query_parser.add_argument("--update-seconds", type=float, default=0.10)
+    temporal_query_parser.add_argument("--temperature", type=float, default=0.15)
+    temporal_query_parser.add_argument("--continuity-weight", type=float, default=0.25)
+    temporal_query_parser.add_argument("--jump-penalty", type=float, default=0.05)
+    temporal_query_parser.add_argument("--min-confidence", type=float, default=0.0)
+    temporal_query_parser.add_argument("--disable-smoothing", action="store_true")
+    temporal_query_parser.set_defaults(func=_command_temporal_query)
+
+    temporal_visualize_parser = subparsers.add_parser(
+        "temporal-visualize",
+        help="visualize a temporal retrieval path as HTML or PNG",
+    )
+    temporal_visualize_parser.add_argument("--query", required=True, type=Path)
+    temporal_visualize_parser.add_argument("--memory", required=True, type=Path)
+    temporal_visualize_parser.add_argument("--output", required=True, type=Path)
+    temporal_visualize_parser.set_defaults(func=_command_temporal_visualize)
 
     evaluate_parser = subparsers.add_parser("evaluate", help="measure F0/UV/quality and rerank successful outputs")
     evaluate_parser.add_argument("--manifest", required=True, type=Path)

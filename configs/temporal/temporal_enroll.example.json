@@ -1,0 +1,11 @@
+{
+  "source": "D:/voice-lab/data/target_vocal.wav",
+  "output": "D:/voice-lab/out/temporal_memory",
+  "patch_seconds": 0.4,
+  "hop_seconds": 0.1,
+  "analysis_sr": 22050,
+  "min_active_ratio": 0.5,
+  "min_f0_confidence": 0.5,
+  "max_clipping_ratio": 0.001,
+  "overwrite": false
+}

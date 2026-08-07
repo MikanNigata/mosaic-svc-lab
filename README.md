@@ -1,5 +1,19 @@
 # Mosaic-SVC Lab
 
+## Temporal Timbre Memory P0
+
+高品質な対象歌唱を局所パッチへ分割し、入力歌唱のrelative register、F0変化、energy、voiced ratioに対応する対象パッチを検索します。検索経路、confidence、声区別coverageをHTMLとJSONで監査できます。
+
+```powershell
+mosaic-lab temporal-enroll --source target_vocal.wav --output out\temporal_memory
+mosaic-lab temporal-query --source source_vocal.wav --memory out\temporal_memory --output out\temporal_query.jsonl
+mosaic-lab temporal-visualize --query out\temporal_query.jsonl --memory out\temporal_memory --output out\temporal_report
+```
+
+TTM-P0は検索・可視化PoCです。局所特徴をSeed-VCや生成器へ注入する処理はまだ実装していません。設計、数式、schema、Go/No-Go条件は[実験文書](docs/experiments/TEMPORAL_TIMBRE_MEMORY_P0.md)を参照してください。
+
+---
+
 日本語 | [English](README.en.md)
 
 **Mosaic-SVC Lab** は、少量の高品質歌唱と、長時間の低品質音声を役割分離して利用し、**個人学習なしを出発点に高品質なオフライン歌唱変換を改善する**ための研究・実験リポジトリです。

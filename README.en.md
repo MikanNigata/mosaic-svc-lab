@@ -1,5 +1,19 @@
 # Mosaic-SVC Lab
 
+## Temporal Timbre Memory P0
+
+TTM-P0 slices high-quality target singing into local patches and retrieves target patches using source-relative register, F0 movement, energy, and voiced ratio. It exports an inspectable retrieval path, confidence scores, register coverage, and an HTML report.
+
+```powershell
+mosaic-lab temporal-enroll --source target_vocal.wav --output out\temporal_memory
+mosaic-lab temporal-query --source source_vocal.wav --memory out\temporal_memory --output out\temporal_query.jsonl
+mosaic-lab temporal-visualize --query out\temporal_query.jsonl --memory out\temporal_memory --output out\temporal_report
+```
+
+TTM-P0 is retrieval and visualization only. It does not inject local features into Seed-VC or another generator. See the [experiment specification](docs/experiments/TEMPORAL_TIMBRE_MEMORY_P0.md) for equations, schemas, limitations, and Go/No-Go criteria.
+
+---
+
 [日本語](README.md) | English
 
 **Mosaic-SVC Lab** is a research and experiment repository for improving **high-quality offline singing voice conversion** from a small amount of clean singing plus longer, lower-quality material, starting without target-specific training.
