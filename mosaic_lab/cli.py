@@ -150,6 +150,12 @@ def _command_temporal_query(args: argparse.Namespace) -> int:
             continuity_weight=args.continuity_weight,
             jump_penalty=args.jump_penalty,
             min_confidence=args.min_confidence,
+            min_source_f0_confidence=args.min_source_f0_confidence,
+            min_patch_f0_confidence=args.min_patch_f0_confidence,
+            min_patch_quality=args.min_patch_quality,
+            min_weight_margin=args.min_weight_margin,
+            max_register_distance=args.max_register_distance,
+            max_voiced_ratio_distance=args.max_voiced_ratio_distance,
         ),
         update_seconds=args.update_seconds,
         disable_smoothing=args.disable_smoothing,
@@ -311,6 +317,12 @@ def build_parser() -> argparse.ArgumentParser:
     temporal_query_parser.add_argument("--continuity-weight", type=float, default=0.25)
     temporal_query_parser.add_argument("--jump-penalty", type=float, default=0.05)
     temporal_query_parser.add_argument("--min-confidence", type=float, default=0.0)
+    temporal_query_parser.add_argument("--min-source-f0-confidence", type=float, default=0.35)
+    temporal_query_parser.add_argument("--min-patch-f0-confidence", type=float, default=0.50)
+    temporal_query_parser.add_argument("--min-patch-quality", type=float, default=0.90)
+    temporal_query_parser.add_argument("--min-weight-margin", type=float, default=0.015)
+    temporal_query_parser.add_argument("--max-register-distance", type=float, default=0.20)
+    temporal_query_parser.add_argument("--max-voiced-ratio-distance", type=float, default=0.35)
     temporal_query_parser.add_argument("--disable-smoothing", action="store_true")
     temporal_query_parser.set_defaults(func=_command_temporal_query)
 

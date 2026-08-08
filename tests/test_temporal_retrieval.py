@@ -11,6 +11,7 @@ from mosaic_lab.temporal_retrieval import (
     TemporalQueryFrame,
     rank_temporal_candidates,
     retrieval_confidence,
+    retrieval_gate,
 )
 
 
@@ -84,6 +85,43 @@ class TemporalRetrievalTests(unittest.TestCase):
         query = TemporalQueryFrame(0, 0.0, _key(0.5))
         self.assertEqual(rank_temporal_candidates(query, [], config=RetrievalConfig()), [])
         self.assertEqual(retrieval_confidence(query, []), 0.0)
+
+    def test_gate_accepts_unambiguous_matching_candidate(self) -> None:
+        query = TemporalQueryFrame(0, 0.0, _key(0.5))
+        candidates = rank_temporal_candidates(
+            query,
+            [
+                _patch("near", 0.5, 0.98, 1000.0, 0.0),
+                _patch("far", 0.9, 0.98, 1000.0, 1.0),
+            ],
+            config=RetrievalConfig(top_k=2, temperature=0.05),
+        )
+        confidence = retrieval_confidence(query, candidates)
+        accepted, reasons, metrics = retrieval_gate(query, candidates, candidates[0], confidence)
+        self.assertTrue(accepted)
+        self.assertEqual(reasons, [])
+        self.assertGreaterEqual(metrics["weight_margin"], 0.015)
+
+    def test_gate_rejects_low_f0_confidence_and_register_mismatch(self) -> None:
+        source = TemporalKey(0.1, 440.0, 430.0, 450.0, 0.8, 0.0, True, 0.5, -20.0, 0.95, 0.2)
+        query = TemporalQueryFrame(0, 0.0, source)
+        patch = _patch("high", 0.8, 0.98, 1000.0, 0.0)
+        candidate = RetrievalCandidate(
+            patch.patch_id,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.98,
+            0.98,
+            patch.start_seconds,
+            patch.key,
+        )
+        accepted, reasons, _ = retrieval_gate(query, [candidate], candidate, 0.95)
+        self.assertFalse(accepted)
+        self.assertIn("source_f0_confidence", reasons)
+        self.assertIn("register_distance", reasons)
 
 
 if __name__ == "__main__":

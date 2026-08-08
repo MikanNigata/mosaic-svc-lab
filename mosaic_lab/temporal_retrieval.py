@@ -54,6 +54,13 @@ class RetrievalConfig:
     continuity_weight: float = 0.25
     jump_penalty: float = 0.05
     min_confidence: float = 0.0
+    min_source_f0_confidence: float = 0.35
+    min_patch_f0_confidence: float = 0.50
+    min_patch_quality: float = 0.90
+    min_weight_margin: float = 0.015
+    max_register_distance: float = 0.20
+    max_voiced_ratio_distance: float = 0.35
+    require_f0_valid_match: bool = True
     register_weight: float = 0.35
     f0_span_weight: float = 0.20
     f0_slope_weight: float = 0.15
@@ -75,6 +82,17 @@ class RetrievalConfig:
             raise ValueError("continuity_weight and jump_penalty must be non-negative")
         if not 0.0 <= self.min_confidence <= 1.0:
             raise ValueError("min_confidence must be between 0 and 1")
+        bounded = (
+            ("min_source_f0_confidence", self.min_source_f0_confidence),
+            ("min_patch_f0_confidence", self.min_patch_f0_confidence),
+            ("min_patch_quality", self.min_patch_quality),
+            ("min_weight_margin", self.min_weight_margin),
+            ("max_register_distance", self.max_register_distance),
+            ("max_voiced_ratio_distance", self.max_voiced_ratio_distance),
+        )
+        for name, value in bounded:
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"{name} must be between 0 and 1")
         weights = (
             self.register_weight,
             self.f0_span_weight,
@@ -288,6 +306,63 @@ def retrieval_confidence(
     return max(0.0, min(1.0, confidence))
 
 
+def retrieval_gate(
+    query: TemporalQueryFrame,
+    candidates: list[RetrievalCandidate],
+    selected: RetrievalCandidate | None,
+    confidence: float,
+    config: RetrievalConfig | None = None,
+) -> tuple[bool, list[str], dict[str, float | bool]]:
+    """Apply an interpretable no-harm gate to one temporal retrieval frame."""
+    config = config or RetrievalConfig()
+    reasons: list[str] = []
+    ordered = sorted(candidates, key=lambda item: item.total_cost)
+    top_weight = ordered[0].soft_weight if ordered else 0.0
+    second_weight = ordered[1].soft_weight if len(ordered) > 1 else 0.0
+    weight_margin = max(0.0, top_weight - second_weight)
+
+    if selected is None:
+        return False, ["no_candidate"], {
+            "retrieval_confidence": confidence,
+            "weight_margin": weight_margin,
+        }
+
+    source = query.key
+    target = selected.key
+    register_distance = abs(source.relative_register - target.relative_register)
+    voiced_ratio_distance = abs(source.voiced_ratio - target.voiced_ratio)
+    f0_valid_match = source.f0_valid == target.f0_valid
+
+    if confidence < config.min_confidence:
+        reasons.append("retrieval_confidence")
+    if selected.quality_score < config.min_patch_quality:
+        reasons.append("patch_quality")
+    if weight_margin < config.min_weight_margin:
+        reasons.append("candidate_margin")
+    if config.require_f0_valid_match and not f0_valid_match:
+        reasons.append("f0_valid_mismatch")
+    if source.f0_valid and source.f0_confidence < config.min_source_f0_confidence:
+        reasons.append("source_f0_confidence")
+    if target.f0_valid and target.f0_confidence < config.min_patch_f0_confidence:
+        reasons.append("patch_f0_confidence")
+    if register_distance > config.max_register_distance:
+        reasons.append("register_distance")
+    if voiced_ratio_distance > config.max_voiced_ratio_distance:
+        reasons.append("voiced_ratio_distance")
+
+    metrics = {
+        "retrieval_confidence": confidence,
+        "source_f0_confidence": source.f0_confidence,
+        "patch_f0_confidence": target.f0_confidence,
+        "patch_quality": selected.quality_score,
+        "weight_margin": weight_margin,
+        "register_distance": register_distance,
+        "voiced_ratio_distance": voiced_ratio_distance,
+        "f0_valid_match": f0_valid_match,
+    }
+    return not reasons, reasons, metrics
+
+
 def build_temporal_queries(
     source: str | Path,
     *,
@@ -352,7 +427,14 @@ def query_temporal_memory(
     with destination.open("w", encoding="utf-8", newline="\n") as handle:
         for query, candidates, selection in zip(queries, frame_candidates, selections):
             confidence = retrieval_confidence(query, candidates, config)
-            selected_id = selection.patch_id if confidence >= config.min_confidence else None
+            accepted, gate_reasons, gate_metrics = retrieval_gate(
+                query,
+                candidates,
+                selection.candidate,
+                confidence,
+                config,
+            )
+            selected_id = selection.patch_id if accepted else None
             record = json_safe(
                 {
                     "schema_version": 1,
@@ -369,12 +451,17 @@ def query_temporal_memory(
                             "total_cost": item.total_cost,
                             "soft_weight": item.soft_weight,
                             "confidence": item.confidence,
+                            "quality_score": item.quality_score,
                             "target_features": asdict(item.key),
                         }
                         for item in candidates
                     ],
                     "selected_patch_id": selected_id,
                     "retrieval_confidence": confidence if selected_id else 0.0,
+                    "raw_retrieval_confidence": confidence,
+                    "gate_accepted": accepted,
+                    "gate_reasons": gate_reasons,
+                    "gate_metrics": gate_metrics,
                 }
             )
             handle.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
@@ -411,6 +498,7 @@ def summarize_query_records(records: list[dict[str, Any]]) -> dict[str, Any]:
     switches = 0
     previous: str | None = None
     coverage_counts = {"low": [0, 0], "mid": [0, 0], "high": [0, 0]}
+    gate_rejections: dict[str, int] = {}
     for record in records:
         patch_id = record.get("selected_patch_id")
         if patch_id and previous and patch_id != previous:
@@ -427,6 +515,8 @@ def summarize_query_records(records: list[dict[str, Any]]) -> dict[str, Any]:
         band = "low" if register < 1.0 / 3.0 else "high" if register >= 2.0 / 3.0 else "mid"
         coverage_counts[band][1] += 1
         coverage_counts[band][0] += int(bool(patch_id))
+        for reason in record.get("gate_reasons", []):
+            gate_rejections[str(reason)] = gate_rejections.get(str(reason), 0) + 1
     duration = 0.0
     if len(records) > 1:
         duration = max(0.0, float(records[-1]["source_time_seconds"]) - float(records[0]["source_time_seconds"]))
@@ -449,5 +539,6 @@ def summarize_query_records(records: list[dict[str, Any]]) -> dict[str, Any]:
                 band: selected_count / total if total else 0.0
                 for band, (selected_count, total) in coverage_counts.items()
             },
+            "gate_rejections": gate_rejections,
         }
     )
